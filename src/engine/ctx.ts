@@ -1,0 +1,113 @@
+import type { Ctx, GameState, PressTone, PromiseStatus } from "./types";
+import type { Rng } from "./rng";
+
+export function clamp(v: number, min = 0, max = 100): number {
+  return Math.min(max, Math.max(min, v));
+}
+
+/** Construit le contexte d'effets passé à tous les choix d'événements. */
+export function makeCtx(s: GameState, rng: Rng): Ctx {
+  const ctx: Ctx = {
+    s,
+    rng,
+    adj(d) {
+      if (d.player)
+        for (const [k, v] of Object.entries(d.player)) {
+          const key = k as keyof typeof s.player;
+          s.player[key] = clamp(s.player[key] + (v ?? 0));
+        }
+      if (d.country)
+        for (const [k, v] of Object.entries(d.country)) {
+          const key = k as keyof typeof s.country;
+          if (key === "croissance" || key === "inflation") {
+            s.country[key] = clamp(s.country[key] + (v ?? 0), -8, 12);
+          } else if (key === "chomage") {
+            s.country[key] = clamp(s.country[key] + (v ?? 0), 2, 30);
+          } else if (key === "dette") {
+            s.country[key] = clamp(s.country[key] + (v ?? 0), 20, 250);
+          } else {
+            s.country[key] = clamp(s.country[key] + (v ?? 0));
+          }
+        }
+      if (d.power)
+        for (const [k, v] of Object.entries(d.power)) {
+          const key = k as keyof typeof s.power;
+          if (key === "sieges") {
+            s.power.sieges = clamp(s.power.sieges + (v ?? 0), 0, 577);
+          } else {
+            s.power[key] = clamp(s.power[key] + (v ?? 0));
+          }
+        }
+      if (d.hidden)
+        for (const [k, v] of Object.entries(d.hidden)) {
+          const key = k as keyof typeof s.hidden;
+          s.hidden[key] = clamp(s.hidden[key] + (v ?? 0));
+        }
+    },
+    sched(eventId, minIn, maxIn, chance = 0.35) {
+      s.delayed.push({
+        eventId,
+        minTurn: s.turnCount + minIn,
+        maxTurn: s.turnCount + maxIn,
+        chance,
+      });
+    },
+    rel(id, d) {
+      const c = s.characters[id];
+      if (!c || !c.vivant) return;
+      if (d.loyaute) c.loyaute = clamp(c.loyaute + d.loyaute);
+      if (d.ambition) c.ambition = clamp(c.ambition + d.ambition);
+      if (d.rancune) c.rancune = clamp(c.rancune + d.rancune);
+    },
+    flag(key, value = true) {
+      s.flags[key] = value;
+    },
+    getFlag(key) {
+      return s.flags[key];
+    },
+    press(text, tone: PressTone = "neutre") {
+      s.press.push({ kind: "echo", text, tone });
+    },
+    log(text) {
+      s.log.push({ turn: s.turnCount, text });
+    },
+    promesse(id, status: PromiseStatus) {
+      const p = s.promises.find((p) => p.id === id);
+      if (p && p.status === "en_cours") p.status = status;
+    },
+    seg(id, d) {
+      const seg = s.segments[id];
+      if (!seg) return;
+      if (d.soutien) seg.soutien = clamp(seg.soutien + d.soutien);
+      if (d.participation) seg.participation = clamp(seg.participation + d.participation);
+    },
+    derive(n) {
+      s.derive = clamp(s.derive + n, 0, 12);
+      if (s.derive >= 8) s.flags["derive_haut"] = true;
+      if (n > 0) {
+        // Les urbains diplômés sont le thermomètre de la Tentation.
+        ctx.seg("urbains", { soutien: -2 * n });
+        ctx.adj({ hidden: { paranoia: n } });
+      }
+    },
+    crise(id) {
+      s.flags["crise_a_lancer"] = id;
+    },
+    chain(eventId) {
+      s.queue.unshift(eventId);
+    },
+  };
+  return ctx;
+}
+
+/** Le rapport officiel sur l'agitation — toujours biaisé par l'Intérieur. */
+export function agitationRapportee(s: GameState): number {
+  const biais = s.characters["mazeau"]?.vivant && s.characters["mazeau"]?.enPoste ? 0.75 : 0.95;
+  return Math.round(s.hidden.agitation * biais);
+}
+
+/** La croissance annoncée par Bercy — toujours un peu optimiste. */
+export function croissanceAnnoncee(s: GameState): number {
+  const biais = s.characters["danglade"]?.enPoste ? 0.4 : 0.1;
+  return Math.round((s.country.croissance + biais) * 10) / 10;
+}
