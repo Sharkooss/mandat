@@ -1,5 +1,6 @@
 node_modules/
 dist/
 .env
+tsconfig.tsbuildinfo
 .claude/settings.local.json
 *.local
