@@ -77,7 +77,12 @@ export function makeCtx(s: GameState, rng: Rng): Ctx {
     },
     promesse(id, status: PromiseStatus) {
       const p = s.promises.find((p) => p.id === id);
-      if (p && p.status === "en_cours") p.status = status;
+      if (!p || p.status !== "en_cours") return;
+      p.status = status;
+      // Une promesse de campagne est d'abord une phrase prononcée devant des
+      // gens. La trahir, c'est se contredire — le registre s'en charge seul,
+      // sans que le contenu ait à y penser.
+      if (status === "trahie") ctx.contredire(`promesse_${id}`);
     },
     seg(id, d) {
       const seg = s.segments[id];
@@ -116,6 +121,54 @@ export function makeCtx(s: GameState, rng: Rng): Ctx {
     },
     chain(eventId) {
       s.queue.unshift(eventId);
+    },
+
+    dire(sujet, citation, contexte = "déclaration publique") {
+      // Le point final est retiré : la phrase sera citée entre guillemets, à
+      // l'intérieur d'autres phrases, et la ponctuation reviendra à l'extérieur.
+      const propre = citation.trim().replace(/\.$/, "");
+      // Redire la même chose ne crée pas une seconde parole : ça la réaffirme,
+      // et une parole réaffirmée coûte plus cher à renier.
+      const existant = s.propos.find((p) => p.sujet === sujet);
+      if (existant) {
+        existant.citation = propre;
+        existant.contexte = contexte;
+        existant.tenu = true;
+        delete existant.reniéAu;
+        return;
+      }
+      s.propos.push({
+        id: `${sujet}_${s.turnCount}`,
+        sujet,
+        citation: propre,
+        contexte,
+        turn: s.turnCount,
+        tenu: true,
+      });
+    },
+
+    aDit(sujet) {
+      return s.propos.find((p) => p.sujet === sujet && p.tenu);
+    },
+
+    contredire(sujet) {
+      const p = s.propos.find((x) => x.sujet === sujet && x.tenu);
+      if (!p) return null;
+      p.tenu = false;
+      p.reniéAu = s.turnCount;
+      // Le coût monte avec l'ancienneté : une parole vieille de trois ans a eu
+      // le temps d'être répétée, citée, imprimée sur des affiches.
+      const age = Math.max(0, s.turnCount - p.turn);
+      const poids = 1 + Math.min(1.2, age * 0.12);
+      ctx.adj({
+        power: { popularite: -Math.round(5 * poids), presse: -Math.round(4 * poids) },
+        player: { integrite: -Math.round(4 * poids) },
+      });
+      // Un reniement ne se paie pas le jour même : il se paie quand la presse
+      // ressort l'archive, quelques mois plus tard.
+      s.flags["propos_renie"] = p.sujet;
+      ctx.sched("propos_confrontation", 1, 3, 0.7);
+      return p.citation;
     },
   };
   return ctx;

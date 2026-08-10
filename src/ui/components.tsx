@@ -5,6 +5,7 @@ import { CAST, CAST_TAGS, SEGMENTS, PROMESSES } from "../content/france/data";
 import { bordMeta } from "../engine/bord";
 import { rangMeta } from "../engine/check";
 import { nomCompletDe, nomDe, substituerNoms } from "../engine/noms";
+import { armeDe, ETAPES } from "../engine/vendetta";
 import { getEvent } from "../engine/registry";
 import { useGame } from "../store";
 import { RichText } from "./RichText";
@@ -558,7 +559,7 @@ function Entourage({ s }: { s: GameState }) {
 // ---------------------------------------------------------------------------
 
 export function StatsTabs({ s }: { s: GameState }) {
-  const [tab, setTab] = useState<"pays" | "pouvoir" | "vous" | "promesses" | "entourage">("pays");
+  const [tab, setTab] = useState<"pays" | "pouvoir" | "vous" | "promesses" | "entourage" | "fils">("pays");
 
   // Cliquer sur un nom dans un texte ouvre directement l'entourage.
   useEffect(() => {
@@ -570,6 +571,7 @@ export function StatsTabs({ s }: { s: GameState }) {
     ["vous", "Vous", "var(--color-perso)"],
     ["promesses", "Promesses", "var(--color-social)"],
     ["entourage", "Entourage", "var(--color-secu)"],
+    ["fils", "Fils", "var(--color-warn)"],
   ] as const;
 
   const c = s.country;
@@ -717,6 +719,7 @@ export function StatsTabs({ s }: { s: GameState }) {
 
       {tab === "promesses" && <Promesses s={s} />}
       {tab === "entourage" && <Entourage s={s} />}
+      {tab === "fils" && <Fils s={s} />}
     </div>
   );
 }
@@ -789,6 +792,92 @@ function Promesses({ s }: { s: GameState }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Les fils en cours : ce qu'on a dit, et qui ne l'a pas oublié
+// ---------------------------------------------------------------------------
+
+const ARME_LABEL: Record<string, string> = {
+  publication: "Un livre, un dossier, une publication",
+  motion: "Une motion, des signatures dans votre camp",
+  putsch: "L'état-major, et ce qu'il peut faire",
+  censure: "Une censure transpartisane",
+  greve: "Le blocage du pays",
+  revelation: "Ce qu'on sait de vous, de près",
+};
+
+function Fils({ s }: { s: GameState }) {
+  const v = s.vendetta;
+  const perso = v ? CAST.find((c) => c.id === v.id) : null;
+  const dits = [...s.propos].sort((a, b) => Number(a.tenu) - Number(b.tenu) || b.turn - a.turn);
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="label mb-1.5">Ce qui se prépare</div>
+        {v && perso && !v.desamorcee ? (
+          <div
+            className="card-flat p-3"
+            style={{ borderLeft: `3px solid ${v.etape >= 3 ? "var(--color-bad)" : "var(--color-warn)"}` }}
+          >
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <span className="text-[13px] font-semibold">{nomCompletDe(s, v.id)}</span>
+              <Tag tone={v.etape >= 3 ? "var(--color-bad)" : "var(--color-warn)"}>Étape {v.etape}/4</Tag>
+            </div>
+            <div className="flex gap-1 mb-2">
+              {[1, 2, 3, 4].map((n) => (
+                <div
+                  key={n}
+                  className="flex-1 rounded-full"
+                  style={{ height: 4, background: n <= v.etape ? (v.etape >= 3 ? "var(--color-bad)" : "var(--color-warn)") : "var(--color-line)" }}
+                />
+              ))}
+            </div>
+            <div className="text-[11.5px] leading-snug" style={{ color: "var(--color-muted)" }}>
+              {ETAPES[v.etape]?.resume}
+            </div>
+            <div className="text-[11px] mt-1.5 italic" style={{ color: "var(--color-faint)" }}>
+              {v.etape >= 2 ? ARME_LABEL[armeDe(v.id)] : "On ne sait pas encore de quoi il est capable."}
+            </div>
+          </div>
+        ) : (
+          <div className="text-[12.5px] italic" style={{ color: "var(--color-faint)" }}>
+            Personne, pour l'instant, ne prépare rien contre vous. Surveillez les rancunes dans l'entourage.
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div className="label mb-1.5">Ce que vous avez dit</div>
+        {dits.length === 0 ? (
+          <div className="text-[12.5px] italic" style={{ color: "var(--color-faint)" }}>
+            Rien d'engageant n'a encore été prononcé en public.
+          </div>
+        ) : (
+          <div className="space-y-1.5 max-h-[300px] panneau-scroll">
+            {dits.map((p) => (
+              <div
+                key={p.id}
+                className="card-flat px-2.5 py-2"
+                style={{ borderLeft: `3px solid ${p.tenu ? "var(--color-good)" : "var(--color-bad)"}` }}
+              >
+                <div className="text-[12px] leading-snug" style={{ color: "var(--color-muted)" }}>
+                  « {p.citation} »
+                </div>
+                <div className="flex items-center justify-between gap-2 mt-1.5">
+                  <span className="text-[10px]" style={{ color: "var(--color-faint)" }}>
+                    {p.contexte}
+                  </span>
+                  <Tag tone={p.tenu ? "var(--color-good)" : "var(--color-bad)"}>{p.tenu ? "Tenue" : "Reniée"}</Tag>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

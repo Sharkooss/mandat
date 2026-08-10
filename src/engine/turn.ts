@@ -1,9 +1,10 @@
 ﻿import type { GameState, PressItem } from "./types";
 import type { Rng } from "./rng";
-import { clamp, agitationRapportee, croissanceAnnoncee } from "./ctx";
+import { clamp, agitationRapportee, croissanceAnnoncee, makeCtx } from "./ctx";
 import { getEvent, standardEvents } from "./registry";
 import { bordMeta } from "./bord";
 import { nomCompletDe } from "./noms";
+import { progresserVendetta } from "./vendetta";
 
 // ---------------------------------------------------------------------------
 // Symptômes : la seule fenêtre du joueur sur les jauges cachées.
@@ -342,9 +343,25 @@ export function selectTurnEvents(s: GameState, rng: Rng): void {
 // Fin de semestre
 // ---------------------------------------------------------------------------
 
+/**
+ * Une ligne politique qui traverse le plateau finit par contredire la phrase
+ * sur laquelle on s'est fait élire. Personne n'a besoin de le signaler : les
+ * archives s'en chargent.
+ */
+function verifierConviction(s: GameState, rng: Rng): void {
+  const p = s.propos.find((x) => x.sujet === "conviction" && x.tenu);
+  if (!p) return;
+  const initial = (s.flags["bord_initial"] as number) ?? 0;
+  if (Math.abs(s.bord - initial) < 6) return;
+  makeCtx(s, rng).contredire("conviction");
+  s.log.push({ turn: s.turnCount, text: "Votre ligne a fini par contredire la conviction qui vous a porté." });
+}
+
 export function endOfTurn(s: GameState, rng: Rng): void {
   simulateEconomy(s, rng);
   driftGauges(s, rng);
+  verifierConviction(s, rng);
+  progresserVendetta(s, rng);
 
   // Suivi cumulé pour le comparatif final avec les présidents réels.
   s.flags["cum_croissance"] = (((s.flags["cum_croissance"] as number) ?? 0) + s.country.croissance);

@@ -144,6 +144,48 @@ export interface PromiseState {
 }
 
 // ---------------------------------------------------------------------------
+// Le registre des paroles. Un président parle beaucoup ; le pays retient peu
+// de choses, mais il les retient longtemps. Chaque déclaration publique est
+// consignée avec sa formulation exacte, pour pouvoir être citée telle quelle
+// le jour où l'on fait le contraire.
+// ---------------------------------------------------------------------------
+
+export interface Propos {
+  id: string;
+  /** Le sujet — c'est lui qui détecte la contradiction, pas l'identifiant. */
+  sujet: string;
+  /** La phrase, citable entre guillemets. */
+  citation: string;
+  /** Où et quand elle a été prononcée. */
+  contexte: string;
+  turn: number;
+  /** Devient faux le jour où l'on fait l'inverse. */
+  tenu: boolean;
+  /** Semestre du reniement, s'il a eu lieu. */
+  reniéAu?: number;
+}
+
+// ---------------------------------------------------------------------------
+// La vendetta. Une rancune qu'on laisse mûrir ne reste pas un chiffre : elle
+// se met en marche, recrute, prépare, puis frappe — et chaque étape peut être
+// interceptée par qui la voit venir.
+// ---------------------------------------------------------------------------
+
+export type VendettaEtape = 1 | 2 | 3 | 4;
+
+export interface Vendetta {
+  /** Le personnage qui vous en veut. */
+  id: string;
+  etape: VendettaEtape;
+  /** Semestre de la dernière progression — sert à cadencer la montée. */
+  depuis: number;
+  /** Le joueur a-t-il vu passer au moins un signe ? */
+  reperee: boolean;
+  /** Étouffée, achetée ou réconciliée : le fil est clos sans dénouement. */
+  desamorcee?: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Événements et choix. Les effets mutent l'état via un contexte d'aide (Ctx).
 // Toute décision significative doit armer une conséquence différée (sched).
 // ---------------------------------------------------------------------------
@@ -182,6 +224,18 @@ export interface Ctx {
   crise: (id: string) => void;
   /** Empile un événement à jouer immédiatement après celui-ci. */
   chain: (eventId: string) => void;
+  /**
+   * Consigne une parole publique. Elle pourra être citée mot pour mot le jour
+   * où l'on fera le contraire — c'est la mémoire longue du pays.
+   */
+  dire: (sujet: string, citation: string, contexte?: string) => void;
+  /** Cette parole a-t-elle été tenue jusqu'ici ? */
+  aDit: (sujet: string) => Propos | undefined;
+  /**
+   * On vient de faire l'inverse de ce qu'on avait dit. Applique le coût, arme
+   * la confrontation et retourne la citation à ressortir dans le texte.
+   */
+  contredire: (sujet: string) => string | null;
 }
 
 export type PressTone = "hostile" | "neutre" | "favorable" | "servile" | "satirique";
@@ -404,6 +458,10 @@ export interface GameState {
   promises: PromiseState[];
   /** Les mesures que la campagne vous propose — jamais le vivier entier. */
   programmePool: string[];
+  /** Tout ce que vous avez dit en public et qu'on peut vous ressortir. */
+  propos: Propos[];
+  /** La rancune qui s'est mise en marche, s'il y en a une. */
+  vendetta: Vendetta | null;
   /** Mini-jeu en attente : la décision est prise mais reste à être tenue. */
   pendingCheck: CheckPlan | null;
   /** Résultat du dernier moment de vérité, affiché avec la résolution. */

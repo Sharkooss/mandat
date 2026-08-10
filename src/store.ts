@@ -47,6 +47,19 @@ function recordImpacts(s: GameState, avant: ReturnType<typeof snapshot>): void {
 }
 
 /**
+ * Les tournures d'un engagement de campagne. Une promesse n'entre pas dans la
+ * mémoire du pays sous la forme d'une ligne de programme : elle y entre sous
+ * la forme d'une phrase, dite un soir, dans un endroit précis.
+ */
+const ENGAGEMENTS: [(label: string) => string, string][] = [
+  [(l) => `${l} : ce n'est pas une option, c'est un engagement.`, "en meeting, devant six mille personnes"],
+  [(l) => `Je le dis ici, et vous pourrez me le rappeler : ${l.charAt(0).toLowerCase()}${l.slice(1)}.`, "au meeting de clôture"],
+  [(l) => `${l}. Pas dans dix ans. Pendant ce mandat.`, "sur le plateau du débat"],
+  [(l) => `Si je suis élu, ce sera ${l.charAt(0).toLowerCase()}${l.slice(1)}. Sinon, ce n'était pas la peine.`, "dans la profession de foi"],
+  [(l) => `On m'a dit que c'était impossible. ${l} : je le ferai.`, "au journal de 20 heures"],
+];
+
+/**
  * Une décision vient d'être prise : on rapproche d'autant le prochain moment
  * de vérité, et on efface le précédent de l'écran.
  */
@@ -314,9 +327,16 @@ export const useGame = create<Store>()(
         // nom de son propre ministre de l'Intérieur.
         const prisParLeCasting = new Set(Object.values(s.castNames).map((n) => n.nom));
         const nomsLibres = NOMS_FAMILLE.filter((n) => !prisParLeCasting.has(n));
-        if (!bio.prenom) bio.prenom = rng.pick(bio.genre === "f" ? PRENOMS_F : PRENOMS_M);
+        // Même précaution sur les prénoms : un conjoint homonyme d'un ministre
+        // rend la moitié des textes confuse.
+        const prenomsPris = new Set(Object.values(s.castNames).map((n) => n.prenom));
+        const libres = (pool: string[]) => {
+          const l = pool.filter((p) => !prenomsPris.has(p));
+          return l.length > 0 ? l : pool;
+        };
+        if (!bio.prenom) bio.prenom = rng.pick(libres(bio.genre === "f" ? PRENOMS_F : PRENOMS_M));
         if (!bio.nom) bio.nom = rng.pick(nomsLibres.length > 0 ? nomsLibres : NOMS_FAMILLE);
-        if (!bio.conjointPrenom) bio.conjointPrenom = rng.pick(bio.genre === "f" ? PRENOMS_M : PRENOMS_F);
+        if (!bio.conjointPrenom) bio.conjointPrenom = rng.pick(libres(bio.genre === "f" ? PRENOMS_M : PRENOMS_F));
         applyBio(s, bio);
         s.act = "ascension";
         // Sept étapes, chacune tirée dans son propre vivier : la carrière
@@ -521,14 +541,17 @@ export const useGame = create<Store>()(
         const rng = rngOf(s);
         const ctx = makeCtx(s, rng);
 
-        // Un programme n'est pas une liste de vœux : il séduit des segments et
-        // déplace votre ligne, avant même le premier meeting.
+        // Un programme n'est pas une liste de vœux : il séduit des segments,
+        // déplace votre ligne, et — surtout — se prononce à voix haute devant
+        // des gens qui s'en souviendront.
         let inclinaison = 0;
         for (const id of promiseIds) {
           const def = PROMESSES.find((p) => p.id === id);
           if (!def) continue;
           for (const seg of def.segments) ctx.seg(seg, { soutien: 5, participation: 2 });
           inclinaison += def.bord ?? 0;
+          const [tournure, lieu] = rng.pick(ENGAGEMENTS);
+          ctx.dire(`promesse_${id}`, tournure(def.label), lieu);
         }
         const glissement = Math.max(-4, Math.min(4, Math.round(inclinaison / 2)));
         if (glissement !== 0) ctx.bord(glissement);

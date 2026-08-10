@@ -61,6 +61,8 @@ export function makeInitialState(seed: number): GameState {
     segments,
     promises: [],
     programmePool: [],
+    propos: [],
+    vendetta: null,
     pendingCheck: null,
     lastCheck: null,
     checkCooldown: 1,
@@ -139,6 +141,8 @@ export function normalizeState(saved: Partial<GameState> | null | undefined): Ga
   // une partie en cours doit les récupérer sans se bloquer sur un mini-jeu
   // dont elle ne connaît pas la cible.
   out.programmePool = saved.programmePool ?? [];
+  out.propos = saved.propos ?? [];
+  out.vendetta = saved.vendetta ?? null;
   out.pendingCheck = saved.pendingCheck ?? null;
   out.lastCheck = saved.lastCheck ?? null;
   out.checkCooldown = saved.checkCooldown ?? 1;
@@ -273,6 +277,21 @@ export function applyBio(s: GameState, bio: Bio): void {
   }
   s.bord = Math.max(-10, Math.min(10, bord));
   if (Math.abs(s.bord) >= 5) s.flags["bord_radical"] = true;
+
+  // La conviction fondatrice est déjà une phrase entre guillemets : c'est la
+  // première parole publique de la carrière, et la plus lourde à renier.
+  const conviction = CONVICTIONS.find((c) => c.id === bio.convictionId);
+  if (conviction) {
+    s.flags["bord_initial"] = s.bord;
+    s.propos.push({
+      id: "conviction",
+      sujet: "conviction",
+      citation: conviction.nom.replace(/^«\s*/, "").replace(/\s*»$/, ""),
+      contexte: "au premier meeting de votre carrière",
+      turn: 0,
+      tenu: true,
+    });
+  }
 
   for (const k of Object.keys(p) as (keyof typeof p)[]) {
     p[k] = Math.max(5, Math.min(95, p[k]));
