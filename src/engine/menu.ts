@@ -108,6 +108,12 @@ function mure(s: GameState, a: ActionDef): boolean {
   return (s.opportuniteMurissement?.[a.id] ?? 0) >= MATURITE[rangDe(a)];
 }
 
+/** Les drapeaux qui peuvent armer l'occasion — aucun si elle naît des jauges. */
+function armes(a: ActionDef): string[] {
+  if (!a.declencheur) return [];
+  return Array.isArray(a.declencheur) ? a.declencheur : [a.declencheur];
+}
+
 /**
  * Fait mûrir les occasions en début de semestre et rend les signes avant-coureurs
  * à glisser dans le briefing.
@@ -129,10 +135,14 @@ export function murirOpportunites(s: GameState, rng: Rng): PressItem[] {
       continue;
     }
     const rang = rangDe(a);
-    const declenchee = !!a.declencheur && !!s.flags[a.declencheur];
+    const declenchee = armes(a).some((f) => !!s.flags[f]);
     const situation = !a.cond || a.cond(s);
-    const assezTard = declenchee || s.turnCount >= PREMIER_TOUR[rang];
-    if (!situation || (a.declencheur && !declenchee) || !assezTard) {
+    // Le plancher vaut même pour une occasion armée par un événement : une
+    // occasion historique au premier trimestre du premier mandat n'est pas
+    // historique, quelle que soit la raison qui l'a ouverte. Le drapeau dispense
+    // d'attendre que la situation s'installe, pas d'attendre son heure.
+    const assezTard = s.turnCount >= PREMIER_TOUR[rang];
+    if (!situation || (armes(a).length > 0 && !declenchee) || !assezTard) {
       delete s.opportuniteMurissement[a.id];
       continue;
     }
@@ -160,10 +170,16 @@ export function tirerOpportunite(s: GameState, rng: Rng): string[] {
     return [];
   }
   const poids = (a: ActionDef) => CHANCE_OPPORTUNITE[rangDe(a)];
+  // Une fenêtre qu'un événement vient d'ouvrir passe devant une fenêtre que la
+  // conjoncture a lentement entrouverte : la première a une raison d'être là ce
+  // semestre-ci, la seconde sera encore là au suivant.
+  const tirage = (a: ActionDef) => poids(a) * (armes(a).some((f) => !!s.flags[f]) ? 2.5 : 1);
   const ouvertes = ACTIONS.filter(
     (a) => a.opportunite && s.actionCooldown[a.id] === undefined && mure(s, a) && (!a.cond || a.cond(s))
   );
   if (ouvertes.length === 0) return [];
-  const choisie = rng.weighted(ouvertes.map((a) => ({ item: a, weight: poids(a) })));
+  const choisie = rng.weighted(ouvertes.map((a) => ({ item: a, weight: tirage(a) })));
+  // La rareté frappe une seconde fois : même mûre et choisie, une occasion
+  // historique ne se présente pas à tous les coups.
   return rng.chance(poids(choisie)) ? [choisie.id] : [];
 }

@@ -14,7 +14,8 @@ import { EVENTS_PRESSE } from "../content/france/presse";
 import { EVENTS_CHANTIERS } from "../content/france/chantiers";
 import { EVENTS_FOLIE } from "../content/france/folie";
 
-const ALL: GameEvent[] = [
+/** Tout le contenu événementiel du jeu, dans l'ordre où il a été écrit. */
+export const ALL: GameEvent[] = [
   ...EVENTS_ASCENSION,
   ...EVENTS_MANDAT,
   ...EVENTS_INTRIGUES,

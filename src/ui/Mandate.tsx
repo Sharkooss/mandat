@@ -237,7 +237,7 @@ export default function Mandate({ s }: { s: GameState }) {
                       <button
                         key={r.id}
                         className="btn-choice"
-                        style={{ "--tone": REFORME_TONE[r.id] ?? "var(--color-monde)" } as React.CSSProperties}
+                        style={{ "--tone": REFORME_TONE[r.id] ?? r.tone ?? "var(--color-monde)" } as React.CSSProperties}
                         disabled={trop}
                         onClick={() => {
                           doAction("reforme", r.id);

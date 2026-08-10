@@ -424,6 +424,7 @@ export const EVENTS_CRISES: GameEvent[] = [
         label: "Un mémorial national, décidé avec les familles",
         effects: (c) => {
           c.adj({ country: { cohesion: 3 } });
+          c.flag("nation_endeuillee");
           c.log("Le mémorial du 14 novembre a été conçu avec les familles des victimes.");
           return "Deux ans de travail avec les familles, un lieu sobre, des noms gravés à hauteur d'enfant « pour qu'on apprenne à les lire tôt ». Le jour de l'inauguration, personne ne regarde les officiels. C'est exactement la réussite recherchée.";
         },
@@ -433,6 +434,7 @@ export const EVENTS_CRISES: GameEvent[] = [
         label: "Rouvrir, vite — « la vie gagne »",
         effects: (c) => {
           c.adj({ power: { popularite: 2 } });
+          c.flag("nation_endeuillee");
           return "La salle rouvre en six mois, premier concert à guichets fermés, larmes et rappels. « La vie gagne » — le slogan est juste et publicitaire à la fois, comme souvent. Une partie des familles n'y remettra jamais les pieds. Les deux mémoires coexisteront : celle qui danse et celle qui ne peut pas.";
         },
       },

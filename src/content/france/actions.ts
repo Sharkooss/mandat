@@ -1,5 +1,6 @@
 ﻿import type { Ctx, GameState } from "../../engine/types";
 import { NATIONS } from "./data";
+import { chantiersDuProgramme } from "./programme";
 import { alliees, defDe, hostiles, majorite } from "../../engine/europe";
 
 // ---------------------------------------------------------------------------
@@ -31,11 +32,16 @@ export interface ActionDef {
   /** Pour une opportunité : à quel point elle se fait attendre. */
   rarete?: OpportuniteRarete;
   /**
-   * Le drapeau qui l'arme. Quand il est présent, l'occasion naît d'un événement
-   * précis et non d'une conjonction de jauges : elle est mûre immédiatement, et
-   * peut donc tomber n'importe quand. Sans ce drapeau, elle n'existe pas.
+   * Le ou les drapeaux qui l'arment. Quand le champ est présent, l'occasion naît
+   * d'un événement précis et non d'une conjonction de jauges : elle est mûre
+   * immédiatement, et peut donc tomber n'importe quand. Tant qu'aucun des
+   * drapeaux n'est posé, elle n'existe pas — on ne la verra jamais.
+   *
+   * Plusieurs drapeaux valent « l'un ou l'autre » : une même fenêtre peut
+   * s'ouvrir par plusieurs chemins, et c'est ce qui fait qu'elle reste
+   * atteignable sans devenir automatique.
    */
-  declencheur?: string;
+  declencheur?: string | string[];
   /**
    * Le signe avant-coureur, glissé au briefing le semestre où la situation
    * commence à s'installer. Une occasion doit s'annoncer avant de se présenter.
@@ -55,9 +61,9 @@ export interface ActionDef {
 export type OpportuniteRarete = "rare" | "exceptionnelle" | "historique";
 
 export const CHANCE_OPPORTUNITE: Record<OpportuniteRarete, number> = {
-  rare: 0.5,
-  exceptionnelle: 0.3,
-  historique: 0.16,
+  rare: 0.6,
+  exceptionnelle: 0.42,
+  historique: 0.24,
 };
 
 export interface ReformeDef {
@@ -66,10 +72,23 @@ export interface ReformeDef {
   cout: number;
   promesse?: string;
   detail: string;
+  /**
+   * Ce qui doit être vrai pour que le chantier existe. Les chantiers écrits à la
+   * main sont toujours ouverts ; ceux que le programme engendre n'existent que
+   * parce qu'on les a promis.
+   */
+  cond?: (s: GameState) => boolean;
+  /** Couleur de la carte — les chantiers écrits la tiennent de l'interface. */
+  tone?: string;
   effects: (c: Ctx) => string;
 }
 
-export const REFORMES: ReformeDef[] = [
+/**
+ * Les chantiers écrits un par un : ceux qui ont leur propre mécanique, leurs
+ * conséquences différées et leur texte. Ils sont engageables même sans les avoir
+ * promis — on peut très bien lancer un plan hôpital dont on n'avait rien dit.
+ */
+const REFORMES_ECRITS: ReformeDef[] = [
   {
     id: "ref_retraites",
     nom: "La réforme des retraites",
@@ -431,6 +450,18 @@ export const REFORMES: ReformeDef[] = [
 ];
 
 /**
+ * Le vivier complet : les chantiers écrits, plus un chantier de série pour
+ * chacune des promesses qui n'en avait aucun. Aucune promesse du programme ne
+ * doit rester sans acte pour la solder — sinon on la jure en campagne et on la
+ * traîne cinq ans, ce qui est la meilleure façon de perdre une réélection sans
+ * avoir jamais eu la main.
+ */
+export const REFORMES: ReformeDef[] = [
+  ...REFORMES_ECRITS,
+  ...chantiersDuProgramme(new Set(REFORMES_ECRITS.map((r) => r.promesse).filter((p): p is string => !!p))),
+];
+
+/**
  * Les chantiers encore engageables. Un chantier lancé ne revient jamais — on ne
  * réforme pas deux fois les retraites dans le même mandat — et une promesse
  * déjà soldée, tenue ailleurs ou trahie, ferme le sien.
@@ -438,6 +469,7 @@ export const REFORMES: ReformeDef[] = [
 export function reformesOuvertes(s: GameState): ReformeDef[] {
   return REFORMES.filter((r) => {
     if ((s.reformesFaites ?? []).includes(r.id)) return false;
+    if (r.cond && !r.cond(s)) return false;
     const p = s.promises.find((x) => x.id === r.promesse);
     return !p || p.status === "en_cours";
   });
@@ -878,11 +910,11 @@ export const ACTIONS: ActionDef[] = [
     nom: "Plan d'urgence national",
     cout: 2,
     detail: "Un secteur s'effondre. Y aller massivement.",
-    cond: (s) => s.country.services < 32 || s.country.securite < 35 || s.country.cohesion < 28,
+    cond: (s) => s.country.services < 46 || s.country.securite < 46 || s.country.cohesion < 42,
     opportunite: true,
     rarete: "rare",
-    signal: "Trois préfets ont écrit la même note la même semaine : « le service ne tiendra pas un semestre de plus ».",
-    pourquoi: "Un secteur entier est au bord de la rupture, et ça dure.",
+    declencheur: ["insurrection_alerte", "nuit_de_la_crue", "vigor_abandon", "hiver_declenche", "etat_urgence"],
+    pourquoi: "Le pays vient de voir un service craquer en direct. Personne ne discutera le coût d'un plan, cette fois — mais la fenêtre se refermera avec l'émotion.",
     icone: "✚",
     tone: "var(--color-bad)",
     effects: (c) => {
@@ -896,11 +928,11 @@ export const ACTIONS: ActionDef[] = [
     nom: "Reprendre la main sur le récit",
     cout: 2,
     detail: "La presse vous massacre. Contre-attaquer.",
-    cond: (s) => s.power.presse < 36,
+    cond: (s) => s.power.presse < 48,
     opportunite: true,
     rarete: "rare",
-    signal: "Deux rédactions ont décliné le même déjeuner off. Ça ne s'était pas produit depuis votre élection.",
-    pourquoi: "Voilà plusieurs semestres que le récit vous échappe entièrement.",
+    declencheur: ["rives_guerre", "pacte_rives_rompu", "dossier_paru", "premiere_fuite", "loi_medias"],
+    pourquoi: "La guerre est ouverte dans les rédactions. Ce genre de conflit ne s'éteint jamais tout seul : soit vous reprenez le récit maintenant, soit il s'installe.",
     icone: "◉",
     tone: "var(--color-perso)",
     effects: (c) => {
@@ -945,11 +977,11 @@ export const ACTIONS: ActionDef[] = [
     nom: "Sauver un titre de presse",
     cout: 2,
     detail: "Un quotidien historique dépose le bilan. L'État peut tout changer.",
-    cond: (s) => s.country.marge >= 22 && s.power.presse < 50,
+    cond: (s) => s.country.marge >= 18 && s.power.presse < 60,
     opportunite: true,
     rarete: "rare",
-    signal: "Un quotidien historique a repoussé le paiement de ses pigistes. Le tribunal de commerce sera saisi avant l'été.",
-    pourquoi: "Un titre centenaire coule, et vous avez encore la marge pour le tenir.",
+    declencheur: ["rives_empire", "rives_guerre", "rives_marche_truque", "loi_medias"],
+    pourquoi: "La concentration s'accélère dans la presse, un titre centenaire coule au milieu, et vous avez encore la marge pour le tenir.",
     icone: "✑",
     tone: "var(--color-social)",
     effects: (c) => {
@@ -973,11 +1005,11 @@ export const ACTIONS: ActionDef[] = [
     nom: "Aller au-devant de la colère",
     cout: 2,
     detail: "Le pays gronde. Y aller sans service d'ordre.",
-    cond: (s) => s.hidden.agitation > 55,
+    cond: (s) => s.hidden.agitation > 40,
     opportunite: true,
     rarete: "rare",
-    signal: "Les préfets ont cessé de compter les rassemblements ; ils comptent désormais les communes concernées.",
-    pourquoi: "Le pays gronde depuis plusieurs mois et rien ne retombe.",
+    declencheur: ["rp_survenu", "retraites_faite", "insurrection_alerte", "repression_dure", "grand_debat"],
+    pourquoi: "Le pays s'est soulevé, la fumée retombe — et personne n'est encore allé lui parler. Ça ne restera pas vrai longtemps.",
     icone: "◎",
     tone: "var(--color-social)",
     effects: (c) => {
@@ -1216,11 +1248,11 @@ export const ACTIONS: ActionDef[] = [
     nom: "La tournée de reconquête",
     cout: 2,
     detail: "La France ne pèse plus rien. Aller le corriger sur place.",
-    cond: (s) => s.country.prestige < 32,
+    cond: (s) => s.country.prestige < 46,
     opportunite: true,
     rarete: "exceptionnelle",
-    signal: "Deux capitales ont décliné une visite d'État « faute de créneau ». Le Quai n'a pas insisté.",
-    pourquoi: "La France ne pèse plus rien, et cela dure depuis plusieurs semestres.",
+    declencheur: ["isolement_alerte", "isolement_diplomatique", "pivot_alliances"],
+    pourquoi: "Une capitale de plus vient de vous tourner le dos. Le Quai a cessé d'appeler cela un incident.",
     icone: "✈",
     tone: "var(--color-monde)",
     effects: (c) => {
@@ -1237,11 +1269,11 @@ export const ACTIONS: ActionDef[] = [
     nom: "Ouvrir un Grenelle",
     cout: 2,
     detail: "Les syndicats sont partis, la rue est pleine. Tout remettre sur la table.",
-    cond: (s) => s.power.syndicats < 26 && s.hidden.agitation > 45,
+    cond: (s) => s.power.syndicats < 42 || s.hidden.agitation > 40,
     opportunite: true,
     rarete: "exceptionnelle",
-    signal: "Les fédérations n'ont pas claqué la porte de la concertation : elles ne sont simplement pas revenues.",
-    pourquoi: "Les syndicats sont partis et la rue ne désemplit plus.",
+    declencheur: ["retraites_faite", "rp_survenu", "requisition_patronale", "repression_dure"],
+    pourquoi: "Un bras de fer social vient de se terminer sans que rien ne soit réglé. C'est le seul moment où tout le monde accepte de revenir à la table.",
     icone: "⚖",
     tone: "var(--color-social)",
     effects: (c) => {
@@ -1278,11 +1310,11 @@ export const ACTIONS: ActionDef[] = [
     nom: "Convoquer un congrès extraordinaire",
     cout: 2,
     detail: "Le parti vous échappe. Le reprendre devant ses militants.",
-    cond: (s) => s.power.parti < 32,
+    cond: (s) => s.power.parti < 46,
     opportunite: true,
     rarete: "exceptionnelle",
-    signal: "Une motion circule dans deux fédérations. Personne ne la signe encore, tout le monde l'a lue.",
-    pourquoi: "Le parti vous échappe, fédération après fédération.",
+    declencheur: ["rival_interne", "frondeur_precoce", "delval_vainqueur", "censure_votee", "technicien_motion"],
+    pourquoi: "Quelqu'un des vôtres a levé la main contre vous et n'a pas été puni. Le congrès est la dernière enceinte où l'on peut encore trancher ça devant les militants.",
     icone: "♟",
     tone: "var(--color-pouvoir)",
     effects: (c) => {
@@ -1304,11 +1336,11 @@ export const ACTIONS: ActionDef[] = [
     nom: "La loi de moralisation",
     cout: 2,
     detail: "Votre réputation est intacte. C'est un capital qui se dépense.",
-    cond: (s) => s.player.integrite > 74 && s.power.justice > 45,
+    cond: (s) => s.player.integrite > 58 && s.power.justice > 38,
     opportunite: true,
     rarete: "exceptionnelle",
-    signal: "Le président de la Haute Autorité a demandé un rendez-vous « pour évoquer l'avenir de sa maison ».",
-    pourquoi: "Votre réputation est intacte depuis assez longtemps pour qu'on vous croie.",
+    declencheur: ["blanchi_publiquement", "commission_en_cours", "carnets_confession", "emploi_familial", "watergate_public"],
+    pourquoi: "Une affaire vient de traverser le pouvoir et vous en sortez debout. C'est le seul état dans lequel on peut faire voter un texte pareil — et il ne dure jamais.",
     icone: "§",
     tone: "var(--color-secu)",
     effects: (c) => {
@@ -1352,11 +1384,11 @@ export const ACTIONS: ActionDef[] = [
     nom: "Dire la vérité sur votre santé",
     cout: 1,
     detail: "Le Dr Manin insiste. Le pays finira par l'apprendre autrement.",
-    cond: (s) => s.hidden.sante < 45,
     opportunite: true,
     rarete: "exceptionnelle",
-    signal: "Le Dr Manin a demandé à voir votre directeur de cabinet. Pas vous.",
-    pourquoi: "Votre santé se dégrade depuis un moment, et cela commence à se voir.",
+    declencheur: ["maladie_cachee"],
+    // Le drapeau dit déjà tout : on ne révèle que ce qu'on a caché.
+    pourquoi: "Vous avez quelque chose à cacher et une rumeur qui tourne. Ce n'est plus qu'une question de savoir qui le dira le premier.",
     icone: "✚",
     tone: "var(--color-perso)",
     effects: (c) => {
@@ -1394,11 +1426,13 @@ export const ACTIONS: ActionDef[] = [
     nom: "Devancer les généraux",
     cout: 2,
     detail: "Ça se murmure dans les états-majors. Ne pas attendre.",
-    cond: (s) => s.hidden.coup > 50,
+    // Un général qui fait de la politique en public est déjà le risque : on
+    // n'attend pas que les rapports du renseignement le confirment.
+    cond: (s) => s.hidden.coup > 12 || s.derive >= 3,
     opportunite: true,
     rarete: "exceptionnelle",
-    signal: "Une promotion d'officiers supérieurs a été gelée sans explication — par l'état-major lui-même.",
-    pourquoi: "Les signaux venus des casernes ne se démentent plus depuis des mois.",
+    declencheur: ["verdier_opposant", "verdier_plie", "regicide", "sahel_drame"],
+    pourquoi: "Un uniforme a parlé politique en public et n'a pas été sanctionné. Dans les casernes, ce genre de silence s'interprète très vite.",
     icone: "⚔",
     tone: "var(--color-bad)",
     effects: (c) => {
@@ -1467,11 +1501,11 @@ export const ACTIONS: ActionDef[] = [
     nom: "Former l'union nationale",
     cout: 2,
     detail: "Le pays est derrière vous. Élargir tant que ça tient.",
-    cond: (s) => s.country.cohesion > 68 && s.power.popularite > 58,
+    cond: (s) => s.country.cohesion > 48 && s.power.popularite > 42,
     opportunite: true,
     rarete: "historique",
-    signal: "Deux chefs de l'opposition ont accepté le même déjeuner. Séparément, mais le même.",
-    pourquoi: "Le pays est rassemblé et vous êtes haut : cette fenêtre-là ne reste jamais ouverte.",
+    declencheur: ["nation_endeuillee", "guerre_ouverte", "cat_assaut_reussi", "mediation_reussie"],
+    pourquoi: "Le pays vient de traverser quelque chose ensemble. Ce genre de fenêtre se referme en quelques semaines, et il n'y en aura pas deux.",
     icone: "⚭",
     tone: "var(--color-pouvoir)",
     effects: (c) => {
@@ -1489,11 +1523,11 @@ export const ACTIONS: ActionDef[] = [
     nom: "Dissoudre",
     cout: 2,
     detail: "Vous êtes haut, l'Assemblée est courte. Tout remettre en jeu.",
-    cond: (s) => s.power.popularite > 60 && s.power.sieges < 289,
+    cond: (s) => s.power.popularite > 50 && s.power.sieges < 289,
     opportunite: true,
     rarete: "historique",
-    signal: "Vos sondeurs ont testé une hypothèse que vous n'aviez pas commandée : des législatives anticipées.",
-    pourquoi: "Vous êtes haut dans l'opinion et court en sièges — la tentation est arithmétique.",
+    declencheur: ["censure_votee", "technicien_motion", "frondeur_precoce", "bascule_refusee"],
+    pourquoi: "L'Assemblée vient de vous montrer qu'elle pouvait vous arrêter. Vous êtes haut dans l'opinion : c'est exactement l'écart qui rend la dissolution tentante, et dangereuse.",
     icone: "⚑",
     tone: "var(--color-pouvoir)",
     effects: (c) => {
@@ -1748,6 +1782,153 @@ export const ACTIONS: ActionDef[] = [
       c.sched("operation_suite", 2, 5, 0.8);
       c.log("Vous avez autorisé une opération clandestine hors du territoire.");
       return "La chemise contient quatre pages et une photographie. Soubeyran ne dit pas le mot, il dit « neutralisation d'une capacité de nuisance », et il attend. Vous signez en bas à droite. Onze jours plus tard, un fait divers à l'étranger occupe deux colonnes puis disparaît. Vous êtes désormais quelqu'un que trois personnes peuvent détruire d'une phrase.";
+    },
+  },
+
+  // --- Les occasions qu'une crise laisse derrière elle ----------------------
+  // Aucune jauge ne les ouvre : il faut avoir traversé quelque chose. Une crise
+  // ne fait pas que coûter des points — elle déverrouille, pendant quelques
+  // semestres, des décisions que personne n'aurait acceptées avant.
+  {
+    id: "sortir_exception",
+    nom: "Sortir de l'exception",
+    cout: 2,
+    detail: "L'état d'urgence dure depuis trop longtemps. Y mettre fin coûte plus que l'avoir décrété.",
+    declencheur: ["etat_urgence"],
+    cond: (s) => !!s.flags["etat_urgence"],
+    opportunite: true,
+    rarete: "exceptionnelle",
+    pourquoi: "Le régime d'exception que vous avez signé est toujours en vigueur. Chaque prolongation le rend un peu plus normal — et un peu plus difficile à lever.",
+    icone: "⎋",
+    tone: "var(--color-env)",
+    effects: (c) => {
+      const risque = c.rng.chance(0.3);
+      c.flag("etat_urgence", false);
+      // Rendre le droit commun est la seule action du jeu qui fasse reculer la
+      // dérive : on ne se défait d'un pouvoir qu'en le rendant.
+      c.derive(-1);
+      c.adj({ country: { cohesion: 6, securite: -6 }, power: { justice: 12, presse: 9, popularite: -4 } });
+      c.seg("urbains", { soutien: 7 });
+      c.seg("quartiers", { soutien: 6 });
+      c.seg("pavillonnaires", { soutien: -5 });
+      c.rel("alberti", { loyaute: 12 });
+      c.rel("mazeau", { rancune: 10 });
+      c.dire(
+        "etat_exception",
+        "Un régime d'exception qui dure n'est plus une exception : c'est un régime",
+        "en annonçant la fin de l'état d'urgence"
+      );
+      c.log("Vous avez mis fin à l'état d'urgence.");
+      if (risque) c.sched("attentat_alerte", 2, 6, 0.5);
+      return "Le décret d'abrogation tient en une page et il vous a coûté quatre réunions à l'Intérieur, dont une où l'on vous a expliqué, chiffres à l'appui, que vous porteriez seul la responsabilité du prochain drame. C'est exact. Vous signez quand même, parce que l'autre option — laisser courir, prolonger de six mois en six mois jusqu'à ce que plus personne ne compte — est la manière dont les démocraties changent de nature sans qu'aucune date ne puisse être citée.";
+    },
+  },
+  {
+    id: "commission_verite",
+    nom: "Ouvrir la commission qu'on a refusée",
+    cout: 2,
+    detail: "Rendre publics les documents qui vous accablent. Personne ne vous le demande plus.",
+    declencheur: ["vigor_esquive", "vigor_abandon", "rapport_etouffe", "secret_defense_attentat", "dossier_etouffe"],
+    opportunite: true,
+    rarete: "exceptionnelle",
+    pourquoi: "Il y a un dossier que vous avez refermé et que le pays a fini par cesser de réclamer. C'est précisément pour ça que le rouvrir vaudrait quelque chose.",
+    icone: "▤",
+    tone: "var(--color-social)",
+    effects: (c) => {
+      const dur = c.s.player.integrite + c.rng.int(-10, 25) > 55;
+      c.adj({ power: { presse: 12, justice: 14, popularite: dur ? 3 : -8 }, player: { integrite: 9 } });
+      c.rel("ferrand", { loyaute: 16, rancune: -14 });
+      c.rel("alberti", { loyaute: 8 });
+      c.gagnerFaveur(2);
+      c.flag("commission_verite");
+      c.log("Vous avez rouvert vous-même le dossier que vous aviez enterré.");
+      return dur
+        ? "Vous convoquez la commission d'enquête que vous aviez évitée, avec un mandat plus large que celui qu'on vous demandait, et vous levez le secret sur les pièces qui vous mettent en cause. Six mois de travaux, quatre cents auditions, un rapport qui vous égratigne sans vous abattre. Louise Ferrand écrit que « c'est la première fois qu'un pouvoir organise lui-même son procès ». Elle le pense, et c'est ce qui rend la phrase dangereuse : vous ne pourrez plus jamais refermer quoi que ce soit."
+        : "Vous ouvrez, et ce qui sort est pire que ce dont vous vous souveniez. Deux notes que vous aviez oubliées avoir lues, une date qui ne colle pas avec votre version publique. Le rapport conclut à une « responsabilité politique pleine et entière ». Vous encaissez debout, ce qui est déjà quelque chose. Le pays retiendra surtout que c'est vous qui aviez ouvert la porte — et cela, personne ne pourra le retourner contre vous.";
+    },
+  },
+  {
+    id: "table_ronds_points",
+    nom: "Écrire la loi avec eux",
+    cout: 2,
+    detail: "Le mouvement a une figure. Lui donner un stylo plutôt qu'un adversaire.",
+    declencheur: ["figure_rp", "grand_debat", "cottin_rencontree", "rp_survenu"],
+    opportunite: true,
+    rarete: "exceptionnelle",
+    pourquoi: "La colère a produit des porte-parole. Tant qu'ils n'ont pas de parti, on peut encore leur proposer une table ; après, ce sera une élection.",
+    icone: "◎",
+    tone: "var(--color-social)",
+    effects: (c) => {
+      const tenu = c.s.player.charisme + c.rng.int(-18, 22) > 52;
+      if (tenu) {
+        c.adj({ country: { cohesion: 8, marge: -6 }, power: { popularite: 8, parti: -8 }, hidden: { agitation: -18 } });
+        c.seg("periurbain", { soutien: 9, participation: 5 });
+        c.seg("ruraux", { soutien: 6 });
+        c.flag("loi_ecrite_ensemble");
+        c.log("Une loi a été co-écrite avec les porte-parole du mouvement social.");
+        return "Neuf mois, une convention de trente-cinq membres tirés du mouvement et des corps intermédiaires, et un texte que le Parlement vote sans le défigurer — parce que le défigurer aurait été trop visible. Maryse Cottin signe l'exposé des motifs. Elle ne fondera pas son parti : elle vient d'obtenir mieux, et elle le sait. Votre propre majorité, elle, ne vous pardonnera jamais d'avoir fait écrire la loi par des gens qui n'ont été élus par personne.";
+      }
+      c.adj({ country: { cohesion: -3 }, power: { popularite: -5 }, hidden: { agitation: 6 } });
+      c.flag("figure_rp");
+      return "La convention se réunit trois fois et explose à la quatrième : deux courants, une accusation de récupération, un départ devant les caméras. Vous avez donné une tribune nationale à des gens qui n'en avaient qu'une locale, et rien en échange. Maryse Cottin sort du bâtiment en disant qu'elle a « vu comment ça marche de l'intérieur ». C'est la phrase d'une candidate.";
+    },
+  },
+  {
+    id: "desarmer_general",
+    nom: "Envoyer le général au feu",
+    cout: 2,
+    detail: "Il vous conteste en uniforme. Lui donner un poste dont on ne revient pas grandi.",
+    declencheur: ["verdier_opposant", "verdier_plie", "verdier_ministre", "regicide"],
+    cond: (s) => !!s.characters["verdier"]?.vivant,
+    opportunite: true,
+    rarete: "exceptionnelle",
+    pourquoi: "Un militaire populaire vous conteste sur le terrain politique. Tant qu'il est encore sous vos ordres, vous avez un coup d'avance ; après sa démission, plus aucun.",
+    icone: "★",
+    tone: "var(--color-pouvoir)",
+    effects: (c) => {
+      const propre = c.s.player.strategie + c.rng.int(-20, 20) > 58;
+      if (propre) {
+        c.adj({ hidden: { coup: -18, paranoia: 6 }, power: { armee: -5, popularite: 3 } });
+        c.rel("verdier", { ambition: -20, loyaute: -6, rancune: 8 });
+        c.log("Le général Verdier a été nommé à un commandement dont personne ne revient célèbre.");
+        return "Commandement interalliés, quartier général à l'étranger, quatre étoiles et zéro caméra française. Le refuser, c'était avouer que ses ambitions n'étaient pas militaires ; l'accepter, c'est disparaître dix-huit mois des écrans. Le général Verdier accepte, salue, et vous regarde une seconde de trop. Vous avez gagné le tour. Vous n'avez pas gagné la partie — ce genre d'homme revient toujours, et il revient avec une rancune bien rangée.";
+      }
+      c.adj({ hidden: { coup: 10, paranoia: 12 }, power: { armee: -14, presse: -5 } });
+      c.rel("verdier", { rancune: 22, loyaute: -18 });
+      c.flag("verdier_opposant");
+      c.log("Le général Verdier a démissionné plutôt que d'accepter sa nomination.");
+      return "Il refuse en trois lignes, démissionne le lendemain, et donne son premier entretien de civil quarante-huit heures plus tard : « On ne m'a pas nommé, on m'a écarté. » La manœuvre était lisible et il l'a lue avant vous. L'état-major, qui déteste pourtant qu'on fasse de la politique en uniforme, déteste encore davantage qu'on traite un des siens comme un gêneur. Vous venez de lui offrir une carrière que vous ne pourrez plus interrompre.";
+    },
+  },
+  {
+    id: "refonder_filiere",
+    nom: "Refonder la filière",
+    cout: 3,
+    detail: "L'accident a tout arrêté. Décider maintenant de quoi le pays vivra dans trente ans.",
+    declencheur: ["vigor_fermee", "vigor_travaux", "vigor_indemnise", "vigor_revue"],
+    opportunite: true,
+    rarete: "historique",
+    pourquoi: "L'accident a suspendu toute la politique énergétique du pays. Pendant quelques mois, tout est rediscutable — ensuite, les habitudes reprendront.",
+    icone: "⬡",
+    tone: "var(--color-env)",
+    effects: (c) => {
+      c.adj({
+        country: { environnement: 10, marge: -14, dette: 6, croissance: -0.4, prestige: 6 },
+        power: { patronat: -6, presse: 7, popularite: 2 },
+        hidden: { fatigue: 12 },
+      });
+      c.seg("urbains", { soutien: 7 });
+      c.seg("periurbain", { soutien: 4 });
+      c.seg("public", { soutien: 5 });
+      c.flag("filiere_refondee");
+      c.dire(
+        "energie_nation",
+        "L'énergie n'est pas un marché qu'on arbitre chaque trimestre : c'est une décision qu'on prend pour trente ans",
+        "en présentant la loi de programmation énergétique"
+      );
+      c.sched("chantier_dividende", 4, 9, 0.6);
+      c.log("Une loi de programmation énergétique a refondé la filière après l'accident.");
+      return "Loi de programmation sur trente ans, autorité de sûreté détachée de l'exploitant et dotée d'un pouvoir d'arrêt, financement sanctuarisé hors budget annuel. C'est le genre de texte qu'aucun pouvoir ne fait passer en temps normal, parce qu'il coûte tout de suite et rapporte après votre départ. Il ne passe aujourd'hui que parce qu'un réacteur a fondu et que personne n'ose être celui qui dira non. Vous utilisez un désastre : c'est ce qu'on attend d'un chef d'État, et c'est aussi ce qui laisse un goût étrange le soir venu.";
     },
   },
 

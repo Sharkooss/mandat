@@ -1,4 +1,10 @@
 import type { GameEvent } from "../../engine/types";
+import { libellePromesse } from "./programme";
+
+/** La mesure dont on parle : celle que le dernier grand chantier a fait passer. */
+function mesure(flags: Record<string, unknown>): string {
+  return (libellePromesse(flags["chantier_recent"]) ?? "la réforme").toLowerCase();
+}
 
 // ---------------------------------------------------------------------------
 // Les suites des chantiers.
@@ -206,6 +212,96 @@ export const EVENTS_CHANTIERS: GameEvent[] = [
           c.adj({ power: { popularite: -5, presse: -5 } });
           c.seg("urbains", { soutien: -4 });
           return "La réponse est juridiquement irréprochable et humainement inaudible. Elle est lue en boucle, en voix off, sur des images de la femme dans son salon. Vous aviez fait voter cette loi contre votre propre camp ; vous venez de laisser croire, en trois lignes de communiqué, qu'elle ne vous engageait pas.";
+        },
+      },
+    ],
+  },
+
+  // -------------------------------------------------------------------------
+  // Les deux suites communes à tous les chantiers du programme. Une promesse
+  // tenue ne s'arrête pas au vote : elle produit un effet réel, deux ou trois
+  // semestres plus tard, et cet effet n'est pas toujours celui qu'on espérait.
+  // -------------------------------------------------------------------------
+  {
+    id: "chantier_secousse",
+    kind: "standard",
+    titre: "L'application se passe mal",
+    once: true,
+    weight: 0,
+    cond: (s) => typeof s.flags["chantier_recent"] === "string",
+    texte: (s) =>
+      `Deux ans après le vote, les premiers effets réels de votre mesure — ${mesure(s.flags)} — arrivent sur les bureaux. Ils ne ressemblent pas à l'étude d'impact. Un rapport de l'inspection générale, remis discrètement, parle d'« effets de bord non anticipés » sur trois pages et d'un « objectif globalement atteint » sur une ligne. La presse a le rapport depuis mardi.`,
+    choices: [
+      {
+        id: "corriger",
+        label: "Corriger, publiquement, sans renier",
+        detail: "Un texte rectificatif. On admet le défaut, pas l'erreur.",
+        effects: (c) => {
+          c.adj({ country: { marge: -4, services: 3 }, power: { presse: 4, popularite: -2 } });
+          return "Vous prenez le rapport, vous en reprenez douze recommandations sur quinze, et vous le dites en ces termes : « la loi était bonne, son application ne l'était pas encore ». La nuance est mince et elle tient, parce qu'elle est vraie. Corriger sans renier est l'exercice le plus difficile du métier ; c'est aussi le seul qui laisse une réforme debout.";
+        },
+      },
+      {
+        id: "defendre",
+        label: "Défendre le texte tel quel",
+        detail: "Les effets de bord sont le prix du courage.",
+        effects: (c) => {
+          c.adj({ power: { popularite: -5, presse: -6 }, country: { cohesion: -3 }, hidden: { agitation: 4 } });
+          c.seg("periurbain", { soutien: -3 });
+          return "« On ne réforme pas un pays sans déplacer quelque chose. » La phrase est juste et elle sonne comme du mépris, ce qui revient au même à la télévision. Les cas particuliers deviennent des reportages, les reportages deviennent une ambiance, et l'ambiance restera bien après que le problème technique aura été réglé par un décret que personne ne lira.";
+        },
+      },
+      {
+        id: "fusible",
+        label: "Faire porter le défaut à l'administration",
+        effects: (c) => {
+          c.derive(1);
+          c.adj({ power: { presse: -3, justice: -3 }, player: { integrite: -5 } });
+          c.rel("rochefort", { loyaute: -8 });
+          return "Deux directeurs d'administration centrale sont remerciés en trois lignes de communiqué, un vendredi. Le message est reçu partout dans l'appareil d'État, mais ce n'est pas celui que vous vouliez envoyer : désormais, personne ne vous écrira plus une note qui contrarie. Vous venez de vous couper d'une des rares sources qui ne vous flattaient pas.";
+        },
+      },
+    ],
+  },
+  {
+    id: "chantier_dividende",
+    kind: "standard",
+    titre: "Le chiffre qui tombe bien",
+    once: true,
+    weight: 0,
+    cond: (s) => typeof s.flags["chantier_recent"] === "string",
+    texte: (s) =>
+      `L'institut de statistiques publie sa première évaluation sérieuse de votre mesure — ${mesure(s.flags)}. Elle marche. Pas spectaculairement, pas partout, mais elle marche : l'écart avec le scénario sans réforme est net, mesuré, difficilement contestable. Roze est déjà dans le couloir avec trois propositions de séquence. La question n'est pas si vous allez vous en servir, mais combien.`,
+    choices: [
+      {
+        id: "sobre",
+        label: "Laisser parler les chiffres",
+        detail: "Un communiqué, l'institut en conférence de presse, et vous nulle part.",
+        effects: (c) => {
+          c.adj({ power: { presse: 7, popularite: 4 }, player: { integrite: 3 } });
+          c.gagnerFaveur();
+          return "L'institut présente seul, répond aux questions techniques pendant quarante minutes, et personne de l'Élysée n'est dans la salle. Le résultat est repris tel quel, sans le filtre du soupçon qui accompagne toute annonce présidentielle. Vous perdez la séquence et vous gagnez la donnée — à trois ans de l'échéance, c'est le meilleur échange du mandat.";
+        },
+      },
+      {
+        id: "capitaliser",
+        label: "En faire la séquence du semestre",
+        effects: (c) => {
+          c.adj({ power: { popularite: 8, presse: -3 } });
+          c.seg("pavillonnaires", { soutien: 4 });
+          c.seg("periurbain", { soutien: 3 });
+          c.dire("preuve_par_les_faits", "On nous disait que c'était impossible : les chiffres sont là, et ils ne sont pas de moi", "en déplacement");
+          return "Déplacement, plateau de vingt heures, tribune signée de votre main : trois jours pendant lesquels le pays n'entend parler que de ça. Ça fonctionne — les gens retiennent surtout qu'une chose annoncée a fini par exister. Deux éditorialistes notent que l'institut est indépendant et que vous vous en attribuez le mérite. Ils ont raison, et ça ne changera rien.";
+        },
+      },
+      {
+        id: "relancer",
+        label: "Enclencher tout de suite la suite",
+        detail: "Une réforme qui marche est la seule fenêtre pour en lancer une autre.",
+        effects: (c) => {
+          c.adj({ country: { marge: -6 }, power: { popularite: 2, parti: 5 }, hidden: { fatigue: 6 } });
+          c.flag("elan_reformateur");
+          return "Vous ne prenez pas les félicitations : vous prenez l'élan. Deuxième étage annoncé dans la foulée, crédits engagés avant que quiconque ait eu le temps de constituer un front. C'est la seule manière de réformer un pays qui, d'ordinaire, digère une loi en trois ans — et c'est aussi la manière la plus sûre de se retrouver à découvert le jour où l'une des deux dérape.";
         },
       },
     ],
