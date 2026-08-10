@@ -11,6 +11,7 @@ import {
 } from "../content/france/data";
 import { makeRng, type Rng } from "./rng";
 import { genererNoms } from "./noms";
+import { etatInitial } from "./europe";
 
 export function makeInitialState(seed: number): GameState {
   const characters: GameState["characters"] = {};
@@ -49,9 +50,9 @@ export function makeInitialState(seed: number): GameState {
       conjointCarriere: "avocature",
     },
     player: { charisme: 45, rhetorique: 45, strategie: 45, integrite: 55, cynisme: 30, endurance: 55, reseau: 35 },
-    country: { croissance: 0.9, chomage: 7.4, inflation: 1.9, dette: 114, marge: 30, services: 42, securite: 55, environnement: 48, cohesion: 38, prestige: 72 },
+    country: { croissance: 0.9, chomage: 7.4, inflation: 1.9, dette: 114, marge: 30, services: 42, securite: 55, environnement: 48, cohesion: 38, prestige: 72, influence: 58 },
     power: { popularite: 50, sieges: 0, parti: 55, presse: 50, armee: 55, patronat: 50, syndicats: 40, justice: 60 },
-    hidden: { fatigue: 10, sante: 90, paranoia: 5, coup: 2, assassinat: 3, agitation: 25 },
+    hidden: { fatigue: 10, sante: 90, paranoia: 5, coup: 2, assassinat: 3, agitation: 25, soupcons: 0 },
     derive: 0,
     bord: 0,
     pc: 3,
@@ -63,6 +64,7 @@ export function makeInitialState(seed: number): GameState {
     programmePool: [],
     propos: [],
     vendetta: null,
+    europe: etatInitial(),
     pendingCheck: null,
     lastCheck: null,
     checkCooldown: 1,
@@ -114,7 +116,10 @@ export function normalizeState(saved: Partial<GameState> | null | undefined): Ga
   // Une partie d'avant le tirage des noms recupère ceux que sa graine aurait
   // produits : les textes déjà archivés portent les noms de référence, et la
   // substitution les rattrape à l'affichage.
-  out.castNames = saved.castNames ?? base.castNames;
+  // Les personnages ajoutés depuis récupèrent le nom que la graine leur aurait
+  // donné : le tirage est déterministe et le casting ne s'allonge que par la
+  // fin, donc les anciens noms sont inchangés.
+  out.castNames = { ...base.castNames, ...(saved.castNames ?? {}) };
   out.segments = { ...base.segments, ...(saved.segments ?? {}) };
   out.flags = saved.flags ?? {};
   out.bord = saved.bord ?? 0;
@@ -148,6 +153,17 @@ export function normalizeState(saved: Partial<GameState> | null | undefined): Ga
   out.pendingCheck = saved.pendingCheck ?? null;
   out.lastCheck = saved.lastCheck ?? null;
   out.checkCooldown = saved.checkCooldown ?? 1;
+
+  // L'Europe est arrivée après coup : une partie en cours récupère un plateau
+  // neuf, et les capitales ajoutées plus tard rejoignent celles déjà connues
+  // sans effacer les relations gagnées ou perdues.
+  const eu = saved.europe;
+  out.europe = {
+    nations: { ...base.europe.nations, ...(eu?.nations ?? {}) },
+    dossiers: eu?.dossiers ?? [],
+    enquete: eu?.enquete ?? null,
+    prochaineElection: eu?.prochaineElection ?? (saved.turnCount ?? 0) + 2,
+  };
   return out;
 }
 

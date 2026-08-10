@@ -5,6 +5,7 @@ import { bordMeta } from "../../engine/bord";
 import { clamp } from "../../engine/ctx";
 import { nomCompletDe } from "../../engine/noms";
 import { epilogue, indicateursCritiques } from "./epilogues";
+import { alliees, hostiles, majorite } from "../../engine/europe";
 
 // ---------------------------------------------------------------------------
 // Les causes de sortie détectées par le moteur
@@ -32,7 +33,20 @@ export type EndingCause =
   | "chute_regime"
   | "insurrection"
   | "prison"
+  | "la_haye"
+  | "mise_au_ban"
+  | "europe_presidence"
   | "referendum_demission";
+
+/**
+ * La France a-t-elle fini seule ? Ce n'est pas une question d'humeur : il faut
+ * que les poids lourds soient partis et qu'il ne reste plus personne pour
+ * porter un texte.
+ */
+function isolement(s: GameState): boolean {
+  const perdus = hostiles(s).filter((d) => !d.institution).reduce((n, d) => n + d.poids, 0);
+  return perdus >= 170 && s.country.influence < 22 && majorite(s) < 32;
+}
 
 /**
  * Le pays tient-il encore debout ? Un régime ne tombe pas sur un mauvais
@@ -54,8 +68,27 @@ export function checkEndings(s: GameState, rng: Rng): EndingCause | null {
     if (effondrement(s) && (s.power.armee < 50 || s.hidden.agitation > 60)) return "chute_regime";
     return s.flags["republique_populaire"] ? "republique_populaire" : "etat_national";
   }
+  // Une opération conduite à l'étranger et rendue publique ne relève plus de
+  // la justice française : c'est la seule chose qu'aucune immunité ne couvre.
+  const operation = s.europe.dossiers.find((d) => d.id === "operation");
+  if (operation?.public) return "la_haye";
   // La justice finit par rattraper les présidences les plus abîmées.
   if (s.flags["chute_judiciaire"]) return "prison";
+
+  // La mise au ban : la France n'est pas battue, elle est seule. Comme
+  // l'insurrection, elle ne tombe jamais sans un semestre d'avertissement.
+  if (isolement(s)) {
+    const alerte = s.flags["isolement_alerte"] as number | undefined;
+    if (alerte === undefined) {
+      s.flags["isolement_alerte"] = s.turnCount;
+      s.delayed.push({ eventId: "isolement_montee", minTurn: s.turnCount + 1, maxTurn: s.turnCount + 2, chance: 1 });
+      s.flags["une_speciale"] = "« LA CHAISE VIDE » — la France n'a été conviée à aucune des trois réunions préparatoires du sommet";
+      s.flags["une_speciale_ton"] = "hostile";
+      s.log.push({ turn: s.turnCount, text: "La France a commencé à être tenue à l'écart des formats européens." });
+    } else if (s.turnCount > alerte && rng.chance(0.5)) {
+      return "mise_au_ban";
+    }
+  }
 
   // L'insurrection : jamais sans avertissement. Le premier semestre où le pays
   // décroche, le joueur reçoit une alerte et un événement pour réagir. C'est
@@ -156,13 +189,16 @@ function verdict(s: GameState, cause: EndingCause): EndingResult["verdict"] {
     { nom: "Cohésion", note: note(s.country.cohesion / 5) },
     { nom: "Environnement", note: note(s.country.environnement / 5) },
     { nom: "Rang international", note: note(s.country.prestige / 5) },
+    // Le rang en Europe ne se confond pas avec le prestige : on peut être
+    // admiré partout et n'avoir aucune voix quand il faut compter les mains.
+    { nom: "Poids en Europe", note: note(s.country.influence / 6 + majorite(s) / 15) },
   ];
   const axesPersonnels = [
     { nom: "Intégrité", note: note(s.player.integrite / 5 - (s.flags["carnets_proces"] ? 4 : 0)) },
     { nom: "Famille", note: note(s.flags["divorce"] ? 5 : conj.loyaute / 5) },
     { nom: "Santé", note: note(s.hidden.sante / 5) },
   ];
-  const totalNat = axesNationaux.reduce((a, b) => a + b.note, 0) / 6;
+  const totalNat = axesNationaux.reduce((a, b) => a + b.note, 0) / axesNationaux.length;
   let jugement: string;
   if (cause === "hiver") jugement = "Il n'y a plus d'historiens pour juger.";
   else if (cause === "republique_populaire" || cause === "etat_national")
@@ -435,6 +471,21 @@ const ENDINGS: Record<string, EndingMeta> = {
     une: () => "« MIS EN EXAMEN, PUIS CONDAMNÉ » — Le Fil publie les trois cents pages. Le reste de la presse suit à midi.",
     epitaphe: () => "Ce n'est pas le pouvoir qui vous a perdu. C'est une pièce jointe, et quelqu'un d'assez patient pour l'attendre.",
   },
+  la_haye: {
+    id: "la_haye", nom: "La Haye", famille: "Sortie judiciaire", rarete: "exceptionnelle",
+    une: () => "« LA FRANCE DEVANT LA COUR » — quatre pages, et une photographie de la salle d'audience, vide, prise la veille.",
+    epitaphe: () => "Vous aviez signé en bas à droite. C'est la seule signature que personne, jamais, n'a réussi à faire disparaître.",
+  },
+  mise_au_ban: {
+    id: "mise_au_ban", nom: "Le ban", famille: "Sortie politique", rarete: "rare",
+    une: () => "« SANS NOUS » — le communiqué du sommet compte vingt-six signatures et une ligne d'explication.",
+    epitaphe: () => "Vous n'avez pas été battu, ni renversé. On a simplement cessé de vous inviter, et le pays s'en est aperçu avant vous.",
+  },
+  europe_presidence: {
+    id: "europe_presidence", nom: "Le continent", famille: "Sortie honorable", rarete: "exceptionnelle",
+    une: () => "« L'EUROPE A UN VISAGE » — et, en dessous, la photographie de la signature, prise de très loin, pour qu'on voie la salle.",
+    epitaphe: () => "Vous avez fait à l'extérieur ce que personne ne vous demandait à l'intérieur. L'Histoire retiendra le traité ; vos électeurs ont retenu l'absence.",
+  },
   statues: {
     id: "statues", nom: "Les statues", famille: "Sortie honorable", rarete: "exceptionnelle",
     une: () => "« LA DÉCENNIE » — et, sous le titre, rien d'autre qu'une photo de la cour d'honneur, vide.",
@@ -461,10 +512,22 @@ export function buildEnding(s: GameState, cause: EndingCause): EndingResult {
       s.country.prestige >= 75 &&
       m.detteDelta <= 0 &&
       s.player.integrite >= 60;
+    // Le procès européen se règle après le mandat : sortir à l'heure ne
+    // protège de rien quand les réquisitions sont déjà écrites.
+    const requis = s.europe.enquete?.etape === 4 && !s.europe.enquete.enterree;
+    // Avoir refait l'Europe est une sortie en soi — même quand l'intérieur
+    // n'a pas suivi, ce qui est presque toujours le cas.
+    const continent =
+      honorable &&
+      !!s.flags["traite_signe"] &&
+      s.country.influence >= 72 &&
+      s.country.prestige >= 70 &&
+      alliees(s).filter((d) => !d.institution).length >= 3;
     // La justice peut rattraper une sortie même arrivée à son terme.
     const rattrape = (s.flags["carnets_proces"] || s.flags["watergate_public"]) && s.power.justice < 32 && s.player.integrite < 30;
-    if (rattrape) meta = ENDINGS.prison;
+    if (rattrape || requis) meta = ENDINGS.prison;
     else if (exemplaire) meta = ENDINGS.statues;
+    else if (continent) meta = ENDINGS.europe_presidence;
     else if (honorable && s.mandat >= 2 && s.power.popularite >= 45 && m.croissance >= 1.1 && s.country.cohesion >= 45) meta = ENDINGS.fin_mandats;
     else if (honorable && s.country.prestige >= 78) meta = ENDINGS.geneve;
     else meta = ENDINGS.memoires;

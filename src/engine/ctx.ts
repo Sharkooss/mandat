@@ -1,6 +1,7 @@
 ﻿import type { Ctx, GameState, PressTone, PromiseStatus } from "./types";
 import type { Rng } from "./rng";
 import { SEGMENTS_DROITE, SEGMENTS_GAUCHE } from "./bord";
+import { ouvrirDossier } from "./europe";
 
 export function clamp(v: number, min = 0, max = 100): number {
   return Math.min(max, Math.max(min, v));
@@ -169,6 +170,30 @@ export function makeCtx(s: GameState, rng: Rng): Ctx {
       s.flags["propos_renie"] = p.sujet;
       ctx.sched("propos_confrontation", 1, 3, 0.7);
       return p.citation;
+    },
+
+    nation(id, d) {
+      const n = s.europe?.nations?.[id];
+      if (!n) return;
+      if (d.relation) n.relation = clamp(n.relation + d.relation, -100, 100);
+      if (d.faveurs) n.faveurs = clamp(n.faveurs + d.faveurs, -100, 100);
+      if (d.savoir) n.savoir = clamp(n.savoir + d.savoir, 0, 100);
+      if (d.bord) n.bord = clamp(n.bord + d.bord, -10, 10);
+    },
+
+    toutesNations(d, sauf = []) {
+      for (const id of Object.keys(s.europe?.nations ?? {})) {
+        if (sauf.includes(id)) continue;
+        ctx.nation(id, d);
+      }
+    },
+
+    dossier(id, titre, gravite) {
+      ouvrirDossier(s, id, titre, gravite);
+    },
+
+    aDossier(id) {
+      return s.europe?.dossiers?.find((d) => d.id === id);
     },
   };
   return ctx;

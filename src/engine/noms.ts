@@ -7,9 +7,11 @@ import {
   NOMS_MAGHREB,
   PRENOMS_F,
   PRENOMS_F_MAGHREB,
+  PRENOMS_F_ALLEMAGNE,
   PRENOMS_M,
   PRENOMS_M_ALLEMAGNE,
   PRENOMS_M_MAGHREB,
+  VIVIERS_ETRANGERS,
 } from "../content/france/data";
 
 // ---------------------------------------------------------------------------
@@ -37,11 +39,18 @@ export interface NomTire {
 function viviers(def: CharacterDef): { prenoms: readonly string[]; noms: readonly string[] } {
   switch (def.registre) {
     case "allemagne":
-      return { prenoms: PRENOMS_M_ALLEMAGNE, noms: NOMS_ALLEMAGNE };
+      return { prenoms: def.genre === "f" ? PRENOMS_F_ALLEMAGNE : PRENOMS_M_ALLEMAGNE, noms: NOMS_ALLEMAGNE };
     case "maghreb":
       return { prenoms: def.genre === "f" ? PRENOMS_F_MAGHREB : PRENOMS_M_MAGHREB, noms: NOMS_MAGHREB };
-    default:
+    case undefined:
       return { prenoms: def.genre === "f" ? PRENOMS_F : PRENOMS_M, noms: NOMS };
+    default: {
+      // Les capitales étrangères ont chacune leur vivier — un premier ministre
+      // hongrois qui s'appellerait Vasseur ferait sortir du jeu.
+      const v = VIVIERS_ETRANGERS[def.registre];
+      if (!v) return { prenoms: def.genre === "f" ? PRENOMS_F : PRENOMS_M, noms: NOMS };
+      return { prenoms: def.genre === "f" ? v.f : v.m, noms: v.noms };
+    }
   }
 }
 

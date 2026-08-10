@@ -26,6 +26,8 @@ export interface CountryStats {
   environnement: number; // 0-100
   cohesion: number; // cohésion sociale 0-100
   prestige: number; // prestige international 0-100
+  /** Le poids réel de la France dans les décisions européennes 0-100. */
+  influence: number;
 }
 
 export interface PowerStats {
@@ -46,6 +48,8 @@ export interface HiddenStats {
   coup: number; // risque de coup d'État 0-100
   assassinat: number; // 0-100
   agitation: number; // agitation sociale RÉELLE 0-100 (les rapports mentent)
+  /** Ce que les enquêteurs, les services étrangers et Bruxelles ont sur vous. */
+  soupcons: number; // 0-100
 }
 
 // ---------------------------------------------------------------------------
@@ -68,7 +72,7 @@ export interface CharacterDef {
    */
   genre: "f" | "m";
   /** Le vivier de noms dans lequel on tire — tout le monde n'est pas d'ici. */
-  registre?: "france" | "allemagne" | "maghreb";
+  registre?: "france" | "allemagne" | "maghreb" | "italie" | "hongrie" | "nordique" | "balkans" | "benelux";
   /** Titre accolé au nom dans les textes (« général », « Dr », « chancelier »). */
   titre?: string;
   /** Formes supplémentaires employées dans les textes (prénom seul, surnom). */
@@ -236,6 +240,17 @@ export interface Ctx {
    * la confrontation et retourne la citation à ressortir dans le texte.
    */
   contredire: (sujet: string) => string | null;
+  /** Modifie ce qu'une capitale pense de vous, et ce qu'elle vous doit. */
+  nation: (id: string, d: { relation?: number; faveurs?: number; savoir?: number; bord?: number }) => void;
+  /** Même chose pour tout le monde d'un coup — c'est le propre d'un éclat. */
+  toutesNations: (d: { relation?: number; savoir?: number }, sauf?: string[]) => void;
+  /**
+   * Ouvre un dossier : quelque chose a été fait qui ne devrait pas l'être. Il
+   * vivra sa vie, alimentera les soupçons et finira par trouver quelqu'un.
+   */
+  dossier: (id: string, titre: string, gravite: number) => void;
+  /** Ce dossier existe-t-il déjà ? */
+  aDossier: (id: string) => Dossier | undefined;
 }
 
 export type PressTone = "hostile" | "neutre" | "favorable" | "servile" | "satirique";
@@ -296,6 +311,86 @@ export interface CheckResult {
 }
 
 export type EventKind = "standard" | "intrigue" | "crise" | "monde" | "perso" | "ascension" | "campagne";
+
+// ---------------------------------------------------------------------------
+// L'Europe : un second plateau, avec ses alliances et ses arrière-cuisines.
+// ---------------------------------------------------------------------------
+
+/** Ce qui fait qu'une capitale vous suit ou vous bloque, au-delà des sondages. */
+export type NationTrait =
+  | "frugale" // compte les euros des autres
+  | "atlantiste" // regarde d'abord vers l'ouest
+  | "souverainiste" // n'aime pas qu'on décide pour elle
+  | "federaliste" // veut plus d'Europe, tout de suite
+  | "industrielle" // défend ses usines avant ses principes
+  | "opaque"; // là où l'argent transite sans qu'on le suive
+
+export interface NationDef {
+  id: string;
+  nom: string;
+  /** « le chancelier allemand », « la présidente du Conseil italien ». */
+  dirigeant: string;
+  /** Le personnage du casting qui l'incarne, quand elle en a un. */
+  dirigeantId?: string;
+  capitale: string;
+  /** Poids au Conseil : ce que vaut son oui, et ce que coûte son non. */
+  poids: number;
+  /** Sa ligne politique de départ, sur la même échelle que la vôtre. */
+  bord: number;
+  traits: NationTrait[];
+  /** L'institution n'est pas un pays : elle ne vote pas, elle contrôle. */
+  institution?: boolean;
+  /** Hors de l'Union : n'entre pas dans les majorités, mais joue quand même. */
+  horsUnion?: boolean;
+}
+
+export interface NationState {
+  id: string;
+  /** −100 hostile, +100 alliée. */
+  relation: number;
+  /** Leur ligne du moment. Leurs électeurs la font bouger sans vous demander. */
+  bord: number;
+  /** Les faveurs : positif, elles vous en doivent ; négatif, vous leur devez. */
+  faveurs: number;
+  /** Ce qu'elles savent de vos arrière-cuisines. */
+  savoir: number;
+}
+
+/** Ce qu'on a fait et qui ne s'efface pas — seulement s'enterre, un temps. */
+export interface Dossier {
+  id: string;
+  /** Le titre que la presse lui donnera le jour où il sortira. */
+  titre: string;
+  turn: number;
+  /** Ce qu'il coûte s'il éclate au grand jour. */
+  gravite: number;
+  /** Enterré à prix d'or. Un dossier enterré n'est jamais détruit. */
+  etouffe?: boolean;
+  /** Déjà sorti : on ne peut plus l'enterrer, seulement le porter. */
+  public?: boolean;
+}
+
+/**
+ * L'enquête européenne : le pendant institutionnel de la vendetta. Elle ne naît
+ * pas d'une rancune mais d'une trace, et elle avance toute seule.
+ */
+export interface Enquete {
+  /** 1 signalement, 2 saisine, 3 perquisition, 4 réquisitions. */
+  etape: 1 | 2 | 3 | 4;
+  depuis: number;
+  /** Le dossier sur lequel elle mord. */
+  dossier: string;
+  /** Étouffée — la procureure a été dessaisie, ou pire. */
+  enterree?: boolean;
+}
+
+export interface EuropeState {
+  nations: Record<string, NationState>;
+  dossiers: Dossier[];
+  enquete: Enquete | null;
+  /** Semestre de la prochaine élection à l'étranger. */
+  prochaineElection: number;
+}
 
 /** La rareté d'un événement — affichée au joueur, pour le plaisir de la trouvaille. */
 export type Rarete = "commune" | "peu_commune" | "rare" | "legendaire";
@@ -462,6 +557,8 @@ export interface GameState {
   propos: Propos[];
   /** La rancune qui s'est mise en marche, s'il y en a une. */
   vendetta: Vendetta | null;
+  /** Le second plateau : les capitales, les dossiers, la procureure. */
+  europe: EuropeState;
   /** Mini-jeu en attente : la décision est prise mais reste à être tenue. */
   pendingCheck: CheckPlan | null;
   /** Résultat du dernier moment de vérité, affiché avec la résolution. */

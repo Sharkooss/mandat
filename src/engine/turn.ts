@@ -5,6 +5,7 @@ import { getEvent, standardEvents } from "./registry";
 import { bordMeta } from "./bord";
 import { nomCompletDe } from "./noms";
 import { progresserVendetta } from "./vendetta";
+import { alliees, driftEurope, hostiles, majorite } from "./europe";
 
 // ---------------------------------------------------------------------------
 // Symptômes : la seule fenêtre du joueur sur les jauges cachées.
@@ -60,6 +61,16 @@ const SYMPTOMES: Symptome[] = [
   { cond: (s) => s.hidden.paranoia > 50, textes: [
     "Vous avez fait vérifier deux fois la liste des invités du dîner d'État.",
     "Vous avez demandé qui avait laissé cette fenêtre ouverte. C'était vous.",
+  ]},
+  { cond: (s) => s.hidden.soupcons > 30 && s.hidden.soupcons <= 55, textes: [
+    "Le trésorier du parti a changé de cabinet comptable. Il ne l'a annoncé à personne.",
+    "Une demande d'entraide judiciaire est partie de Luxembourg vers Paris. Le Quai n'a pas su dire à quel dossier elle se rattachait.",
+    "Deux virements ont été « signalés pour vérification de routine ». La routine, en la matière, n'existe pas.",
+  ]},
+  { cond: (s) => s.hidden.soupcons > 55, textes: [
+    "Un huissier européen a demandé la liste des agents ayant accès aux comptes spéciaux. On la lui a donnée.",
+    "Louise Ferrand a passé quatre jours à Bruxelles. Elle n'a rien publié, ce qui est plus inquiétant que le contraire.",
+    "Votre avocat personnel a annulé ses vacances. Vous ne lui aviez rien demandé.",
   ]},
 ];
 
@@ -252,6 +263,22 @@ export function genBriefing(s: GameState, rng: Rng): void {
     tone: "neutre",
   });
 
+  // Le point de situation européen : où en est la France au Conseil, et qui
+  // s'est éloigné depuis six mois. C'est la seule fenêtre régulière sur un
+  // plateau qui bouge tout seul.
+  const maj = majorite(s);
+  const amis = alliees(s).filter((d) => !d.institution);
+  const ennemis = hostiles(s).filter((d) => !d.institution);
+  s.press.push({
+    kind: "monde",
+    text:
+      `Note du Quai d'Orsay : influence de la France estimée à ${Math.round(s.country.influence)}/100 ; ` +
+      `une initiative française réunirait aujourd'hui ${maj} % du Conseil. ` +
+      (amis.length > 0 ? `Avec nous : ${amis.map((d) => d.capitale).join(", ")}. ` : "Aucune capitale ne nous suit franchement. ") +
+      (ennemis.length > 0 ? `Contre : ${ennemis.map((d) => d.capitale).join(", ")}.` : "Aucune hostilité déclarée."),
+    tone: maj >= 60 ? "favorable" : maj >= 40 ? "neutre" : "hostile",
+  });
+
   // La ligne, quand elle est marquée, devient un sujet en soi.
   if (Math.abs(s.bord) >= 5) {
     const m = bordMeta(s.bord);
@@ -362,6 +389,7 @@ export function endOfTurn(s: GameState, rng: Rng): void {
   driftGauges(s, rng);
   verifierConviction(s, rng);
   progresserVendetta(s, rng);
+  driftEurope(s, rng);
 
   // Suivi cumulé pour le comparatif final avec les présidents réels.
   s.flags["cum_croissance"] = (((s.flags["cum_croissance"] as number) ?? 0) + s.country.croissance);

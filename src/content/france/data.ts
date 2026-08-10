@@ -1,4 +1,4 @@
-import type { CharacterDef, PromiseDef, Rarete, SegmentDef } from "../../engine/types";
+import type { CharacterDef, NationDef, PromiseDef, Rarete, SegmentDef } from "../../engine/types";
 
 // ---------------------------------------------------------------------------
 // Les segments d'électorat (poids somme à 100)
@@ -185,7 +185,61 @@ export const CAST: CharacterDef[] = [
   { id: "bensalah", nom: "Karim Bensalah", genre: "m", registre: "maghreb", alias: ["Karim"], role: "Ami d'enfance", camp: "intime", loyaute: 95, ambition: 5, rancune: 0 },
   { id: "manin", nom: "Estelle Manin", genre: "f", titre: "Dr", role: "Médecin personnel", camp: "intime", loyaute: 90, ambition: 10, rancune: 0 },
   { id: "weiss", nom: "Weiss", genre: "m", registre: "allemagne", titre: "chancelier", role: "Chancelier allemand", camp: "etranger", loyaute: 40, ambition: 50, rancune: 0 },
+  { id: "dallara", nom: "Giulia Dallara", genre: "f", registre: "italie", role: "Présidente du Conseil italien", camp: "etranger", biais: "promet tout, signe peu", loyaute: 35, ambition: 65, rancune: 5 },
+  { id: "farkas", nom: "Zoltán Farkas", genre: "m", registre: "hongrie", role: "Premier ministre hongrois", camp: "etranger", biais: "vous flatte tant que vous dérivez", loyaute: 20, ambition: 55, rancune: 0 },
+  { id: "vestergaard", nom: "Ingrid Vestergaard", genre: "f", registre: "nordique", role: "Présidente de la Commission", camp: "etranger", biais: "ne parle jamais qu'au nom des traités", loyaute: 40, ambition: 45, rancune: 0 },
+  { id: "dragomir", nom: "Elena Dragomir", genre: "f", registre: "balkans", role: "Procureure européenne", camp: "etranger", biais: "ne vous dira jamais ce qu'elle a", loyaute: 0, ambition: 35, rancune: 0 },
+  { id: "zeeman", nom: "Joost Zeeman", genre: "m", registre: "benelux", role: "Financier, montages transfrontaliers", camp: "etranger", biais: "tout est légal, techniquement", loyaute: 25, ambition: 70, rancune: 0 },
+  { id: "soubeyran", nom: "Bertrand Soubeyran", genre: "m", role: "Directeur général de la Sécurité extérieure", camp: "gouvernement", biais: "propose toujours l'option la plus courte", loyaute: 65, ambition: 30, rancune: 0 },
 ];
+
+// ---------------------------------------------------------------------------
+// Le second plateau : l'Europe.
+//
+// Une capitale n'est pas un décor. Elle a une ligne, un poids, des manies, et
+// des électeurs qui la font changer d'avis sans vous prévenir. Ce qui fait
+// qu'elle vous suit, ce n'est pas votre charme : c'est la distance entre sa
+// ligne et la vôtre, et ce que vous lui coûtez.
+// ---------------------------------------------------------------------------
+
+export const NATIONS: NationDef[] = [
+  {
+    id: "allemagne", nom: "Allemagne", capitale: "Berlin", dirigeant: "le chancelier", dirigeantId: "weiss",
+    poids: 100, bord: 1, traits: ["frugale", "industrielle", "federaliste"],
+  },
+  {
+    id: "italie", nom: "Italie", capitale: "Rome", dirigeant: "la présidente du Conseil", dirigeantId: "dallara",
+    poids: 72, bord: 4, traits: ["souverainiste", "industrielle"],
+  },
+  {
+    id: "espagne", nom: "Espagne", capitale: "Madrid", dirigeant: "le chef du gouvernement",
+    poids: 62, bord: -5, traits: ["federaliste"],
+  },
+  {
+    id: "pologne", nom: "Pologne", capitale: "Varsovie", dirigeant: "le premier ministre",
+    poids: 55, bord: 3, traits: ["atlantiste", "souverainiste"],
+  },
+  {
+    id: "paysbas", nom: "Pays-Bas", capitale: "La Haye", dirigeant: "le premier ministre",
+    poids: 42, bord: 0, traits: ["frugale", "opaque"],
+  },
+  {
+    id: "hongrie", nom: "Hongrie", capitale: "Budapest", dirigeant: "le premier ministre", dirigeantId: "farkas",
+    poids: 22, bord: 8, traits: ["souverainiste", "opaque"],
+  },
+  {
+    id: "royaumeuni", nom: "Royaume-Uni", capitale: "Londres", dirigeant: "le premier ministre",
+    poids: 68, bord: 2, traits: ["atlantiste", "opaque"], horsUnion: true,
+  },
+  {
+    id: "commission", nom: "Commission européenne", capitale: "Bruxelles", dirigeant: "la présidente", dirigeantId: "vestergaard",
+    poids: 0, bord: 0, traits: ["federaliste", "frugale"], institution: true,
+  },
+];
+
+export function nationDe(id: string): NationDef | undefined {
+  return NATIONS.find((n) => n.id === id);
+}
 
 /** Étiquette courte affichée en tag coloré dans le panneau Entourage. */
 export const CAST_TAGS: Record<string, string> = {
@@ -211,6 +265,12 @@ export const CAST_TAGS: Record<string, string> = {
   bensalah: "Ami d'enfance",
   manin: "Médecin",
   weiss: "Berlin",
+  dallara: "Rome",
+  farkas: "Budapest",
+  vestergaard: "Commission",
+  dragomir: "Parquet eur.",
+  zeeman: "Montages",
+  soubeyran: "Extérieur",
 };
 
 // ---------------------------------------------------------------------------
@@ -389,6 +449,40 @@ export const NOMS = [
 ];
 
 /** Les personnages qui ne viennent pas du même monde gardent leur texture. */
+/**
+ * Les viviers étrangers. Aucun d'eux ne contient le patronyme canonique d'un
+ * personnage : un nom tiré qui tomberait sur celui d'un autre ferait de tous
+ * ses textes une bouillie à l'affichage.
+ */
+export const VIVIERS_ETRANGERS: Record<string, { f: readonly string[]; m: readonly string[]; noms: readonly string[] }> = {
+  italie: {
+    f: ["Giulia", "Chiara", "Federica", "Silvia", "Paola", "Alessandra", "Marta", "Livia", "Antonella", "Ilaria"],
+    m: ["Matteo", "Lorenzo", "Riccardo", "Giancarlo", "Enrico", "Davide", "Fulvio", "Massimo", "Nello", "Ottavio"],
+    noms: ["Bonaventura", "Trevisan", "Mazzola", "Ruggeri", "Camposanto", "Baldini", "Vigorelli", "Peruzzi", "Sartori", "Marchetti", "Zanardi", "Torrisi"],
+  },
+  hongrie: {
+    f: ["Zsófia", "Katalin", "Ilona", "Réka", "Márta", "Enikő"],
+    m: ["Zoltán", "László", "Gábor", "Attila", "Csaba", "Bence", "Tibor", "Ákos"],
+    noms: ["Szabó", "Kovács", "Balogh", "Váradi", "Hegedűs", "Molnár", "Fodor", "Almási", "Bíró", "Vajda"],
+  },
+  nordique: {
+    f: ["Ingrid", "Astrid", "Sigrid", "Kirsten", "Annika", "Birgitta", "Solveig", "Maja"],
+    m: ["Anders", "Lars", "Henrik", "Björn", "Mikkel", "Rasmus", "Olav", "Espen"],
+    noms: ["Halvorsen", "Lindqvist", "Sørensen", "Nyholm", "Bergström", "Dahlgren", "Kvist", "Öberg", "Aaltonen", "Rydberg"],
+  },
+  balkans: {
+    f: ["Elena", "Ana", "Ioana", "Milena", "Ruxandra", "Vesna", "Daniela", "Irina"],
+    m: ["Andrei", "Dragan", "Emil", "Bogdan", "Nikola", "Stefan", "Vlad", "Goran"],
+    noms: ["Petrescu", "Iliescu", "Vuković", "Stanković", "Marinescu", "Novaković", "Radu", "Jovanov", "Cristea", "Antonescu"],
+  },
+  benelux: {
+    f: ["Anke", "Sanne", "Marieke", "Femke", "Lieke", "Wilhelmina"],
+    m: ["Joost", "Bram", "Wouter", "Sander", "Thijs", "Rutger", "Maarten", "Koen"],
+    noms: ["Haverkamp", "Doorn", "Rietveld", "Sluiter", "Vandenberghe", "Kloosterman", "Terlouw", "Boelens", "Grootveld", "Nieuwenhuis"],
+  },
+};
+
+export const PRENOMS_F_ALLEMAGNE = ["Ingeborg", "Ursula", "Hannelore", "Brigitte", "Sabine", "Gudrun", "Elke", "Renate"];
 export const PRENOMS_M_ALLEMAGNE = ["Klaus", "Dietrich", "Helmut", "Reinhard", "Matthias", "Jürgen", "Wolfgang", "Andreas", "Stefan", "Lothar", "Gerhard", "Konrad"];
 export const NOMS_ALLEMAGNE = ["Brandt", "Kessler", "Hofmann", "Lindner", "Reuter", "Bergmann", "Kuhn", "Steinbach", "Kleinert", "Zimmerling", "Naumann", "Ehrhardt"];
 export const PRENOMS_M_MAGHREB = ["Samir", "Rachid", "Mehdi", "Yacine", "Farid", "Nabil", "Sofiane", "Tarek", "Amine", "Hakim"];

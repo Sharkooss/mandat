@@ -1,7 +1,8 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import type { CheckResult, GameEvent, GameState, PressItem, Rarete } from "../engine/types";
 import type { Delta } from "../engine/deltas";
-import { CAST, CAST_TAGS, SEGMENTS, PROMESSES } from "../content/france/data";
+import { CAST, CAST_TAGS, NATIONS, SEGMENTS, PROMESSES } from "../content/france/data";
+import { ETAPES_ENQUETE, majorite, SEUIL_ALLIE, SEUIL_HOSTILE } from "../engine/europe";
 import { bordMeta } from "../engine/bord";
 import { rangMeta } from "../engine/check";
 import { nomCompletDe, nomDe, substituerNoms } from "../engine/noms";
@@ -559,7 +560,7 @@ function Entourage({ s }: { s: GameState }) {
 // ---------------------------------------------------------------------------
 
 export function StatsTabs({ s }: { s: GameState }) {
-  const [tab, setTab] = useState<"pays" | "pouvoir" | "vous" | "promesses" | "entourage" | "fils">("pays");
+  const [tab, setTab] = useState<"pays" | "pouvoir" | "europe" | "vous" | "promesses" | "entourage" | "fils">("pays");
 
   // Cliquer sur un nom dans un texte ouvre directement l'entourage.
   useEffect(() => {
@@ -568,6 +569,7 @@ export function StatsTabs({ s }: { s: GameState }) {
   const tabs = [
     ["pays", "Pays", "var(--color-eco)"],
     ["pouvoir", "Pouvoir", "var(--color-pouvoir)"],
+    ["europe", "Europe", "var(--color-monde)"],
     ["vous", "Vous", "var(--color-perso)"],
     ["promesses", "Promesses", "var(--color-social)"],
     ["entourage", "Entourage", "var(--color-secu)"],
@@ -588,7 +590,10 @@ export function StatsTabs({ s }: { s: GameState }) {
     { key: "securite", label: "Sécurité", value: c.securite, tone: "securite", max: 100, critique: c.securite < 35 },
     { key: "environnement", label: "Environnement", value: c.environnement, tone: "environnement", max: 100, critique: c.environnement < 30 },
   ];
-  const monde: MetricSpec[] = [{ key: "prestige", label: "Prestige", value: c.prestige, tone: "monde", max: 100, critique: c.prestige < 40 }];
+  const monde: MetricSpec[] = [
+    { key: "prestige", label: "Prestige", value: c.prestige, tone: "monde", max: 100, critique: c.prestige < 40 },
+    { key: "influence", label: "Influence en Europe", value: c.influence, tone: "monde", max: 100, critique: c.influence < 35 },
+  ];
 
   const p = s.power;
   const pouvoir: MetricSpec[] = [
@@ -717,9 +722,140 @@ export function StatsTabs({ s }: { s: GameState }) {
         </div>
       )}
 
+      {tab === "europe" && <Europe s={s} />}
       {tab === "promesses" && <Promesses s={s} />}
       {tab === "entourage" && <Entourage s={s} />}
       {tab === "fils" && <Fils s={s} />}
+    </div>
+  );
+}
+
+/** Le vocabulaire des chancelleries : on n'y dit jamais « ennemi ». */
+export function etiquetteRelation(r: number): [string, string] {
+  if (r >= 60) return ["Alliée", "var(--color-good)"];
+  if (r >= SEUIL_ALLIE) return ["Proche", "var(--color-env)"];
+  if (r > 0) return ["Correcte", "var(--color-monde)"];
+  if (r > SEUIL_HOSTILE) return ["Fraîche", "var(--color-warn)"];
+  if (r > -60) return ["Hostile", "var(--color-bad)"];
+  return ["Rupture", "var(--color-bad)"];
+}
+
+function Europe({ s }: { s: GameState }) {
+  const maj = majorite(s);
+  const rangs = NATIONS.map((def) => ({ def, st: s.europe.nations[def.id] })).filter((x) => !!x.st);
+  rangs.sort((a, b) => b.st.relation - a.st.relation);
+  const dossiers = s.europe.dossiers;
+  const enq = s.europe.enquete;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="label mb-1.5">Au Conseil</div>
+        <div className="card-flat p-3">
+          <div className="flex items-baseline justify-between mb-1.5">
+            <span className="text-[12px]" style={{ color: "var(--color-muted)" }}>
+              Une initiative française réunirait
+            </span>
+            <span className="text-[17px] font-bold" style={{ color: maj >= 60 ? "var(--color-good)" : maj >= 40 ? "var(--color-monde)" : "var(--color-bad)" }}>
+              {maj} %
+            </span>
+          </div>
+          <div className="rounded-full overflow-hidden" style={{ height: 6, background: "var(--color-line)" }}>
+            <div
+              className="h-full rounded-full transition-all"
+              style={{ width: `${maj}%`, background: maj >= 60 ? "var(--color-good)" : maj >= 40 ? "var(--color-monde)" : "var(--color-bad)" }}
+            />
+          </div>
+          <div className="text-[11px] mt-1.5 italic" style={{ color: "var(--color-faint)" }}>
+            Il en faut 60 pour qu'un texte passe sans marchandage.
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div className="label mb-1.5">Les capitales</div>
+        <div className="space-y-1.5">
+          {rangs.map(({ def, st }) => {
+            const [libelle, ton] = etiquetteRelation(st.relation);
+            const ecart = Math.abs(s.bord - st.bord);
+            return (
+              <div key={def.id} className="card-flat p-2.5" style={{ borderLeft: `3px solid ${ton}` }}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[12.5px] font-semibold">{def.nom}</span>
+                  <div className="flex gap-1 items-center">
+                    {st.savoir >= 35 && <Tag tone="var(--color-bad)">◐ En sait trop</Tag>}
+                    <Tag tone={ton}>{libelle}</Tag>
+                  </div>
+                </div>
+                <div className="text-[11px] mt-0.5" style={{ color: "var(--color-faint)" }}>
+                  {def.capitale}
+                  {def.institution ? " · l'institution, pas un vote" : def.horsUnion ? " · hors de l'Union" : ` · poids ${def.poids}`}
+                  {" · "}
+                  {ecart <= 3 ? "ligne proche" : ecart <= 6 ? "ligne différente" : "à l'opposé"}
+                  {st.faveurs >= 10 ? " · vous doit une faveur" : st.faveurs <= -10 ? " · vous lui devez" : ""}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <div className="label mb-1.5">Ce qui traîne</div>
+        {dossiers.length === 0 ? (
+          <div className="text-[12.5px] italic" style={{ color: "var(--color-faint)" }}>
+            Rien qui puisse vous être reproché. Pour l'instant, personne ne cherche.
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            {dossiers.map((d) => (
+              <div
+                key={d.id}
+                className="card-flat p-2.5"
+                style={{ borderLeft: `3px solid ${d.public ? "var(--color-bad)" : d.etouffe ? "var(--color-warn)" : "var(--color-muted)"}` }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[12px] leading-snug">{d.titre}</span>
+                  <Tag tone={d.public ? "var(--color-bad)" : d.etouffe ? "var(--color-warn)" : "var(--color-muted)"}>
+                    {d.public ? "Public" : d.etouffe ? "Enterré" : "Discret"}
+                  </Tag>
+                </div>
+              </div>
+            ))}
+            <div className="text-[11px] italic" style={{ color: "var(--color-faint)" }}>
+              Un dossier enterré n'est pas un dossier détruit.
+            </div>
+          </div>
+        )}
+      </div>
+
+      {enq && (
+        <div>
+          <div className="label mb-1.5" style={{ color: "var(--color-bad)" }}>
+            Le parquet européen
+          </div>
+          <div className="card-flat p-3" style={{ borderLeft: `3px solid ${enq.enterree ? "var(--color-warn)" : "var(--color-bad)"}` }}>
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <span className="text-[13px] font-semibold">{ETAPES_ENQUETE[enq.etape]?.titre}</span>
+              <Tag tone={enq.enterree ? "var(--color-warn)" : "var(--color-bad)"}>
+                {enq.enterree ? "Suspendue" : `Étape ${enq.etape}/4`}
+              </Tag>
+            </div>
+            <div className="flex gap-1 mb-2">
+              {[1, 2, 3, 4].map((n) => (
+                <div
+                  key={n}
+                  className="flex-1 rounded-full"
+                  style={{ height: 4, background: n <= enq.etape ? (enq.enterree ? "var(--color-warn)" : "var(--color-bad)") : "var(--color-line)" }}
+                />
+              ))}
+            </div>
+            <div className="text-[11.5px] leading-snug" style={{ color: "var(--color-muted)" }}>
+              {ETAPES_ENQUETE[enq.etape]?.resume}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

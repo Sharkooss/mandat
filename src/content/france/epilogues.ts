@@ -138,6 +138,73 @@ export function epilogue(s: GameState, cause: EndingCause): string[] {
       break;
     }
 
+    case "la_haye": {
+      const complices = Object.values(s.europe.nations).filter((n) => n.savoir >= 30).length;
+      p.push(
+        `Ce n'est pas la France qui vous juge, et c'est tout le problème. Un chef d'État français dispose, chez lui, d'une immunité, d'un Conseil constitutionnel et d'un garde des Sceaux à qui parler. Devant une juridiction internationale, il ne dispose de rien de tout cela — il dispose d'un avocat et d'un numéro de dossier.`
+      );
+      p.push(
+        `${nomCompletDe(s, "soubeyran")} a été entendu pendant onze jours. ${
+          s.flags["ordre_efface"]
+            ? `Il a produit une copie de l'ordre que vous aviez fait retirer du registre. La cour a passé une demi-journée sur la question de savoir pourquoi l'original manquait — c'est cette demi-journée qui a décidé du reste.`
+            : `Il n'a rien caché, rien chargé, et il a répété la même phrase à chaque audience : « J'ai exécuté un ordre régulier, signé, daté. » La régularité de l'ordre était précisément ce qui vous mettait en cause.`
+        }`
+      );
+      p.push(
+        complices >= 3
+          ? `${complices} services alliés savaient depuis le début. Aucun n'a témoigné spontanément ; tous ont répondu aux commissions rogatoires, exhaustivement, avec des archives datées. On appelle cela la coopération judiciaire. C'est le mot que les amitiés d'État emploient quand elles cessent.`
+          : `Deux gouvernements étrangers ont transmis des pièces sans qu'on les leur demande. On ne saura jamais s'il s'agissait de justice ou de règlement de comptes ; l'un et l'autre produisent les mêmes documents.`
+      );
+      p.push(
+        `${conjoint ? `${conjoint} est venu le premier jour, puis plus du tout. ` : ""}Le pays, lui, a réagi de la manière la plus déroutante qui soit : il n'a pas réagi. On ne défile pas pour une opération que personne n'a demandée, contre quelqu'un dont personne n'a jamais su le nom.`
+      );
+      break;
+    }
+
+    case "mise_au_ban": {
+      const perdus = Object.entries(s.europe.nations).filter(([, n]) => n.relation <= -30).length;
+      p.push(
+        `Il n'y a pas eu de rupture, pas de départ claqué, pas de référendum. Il y a eu une série de réunions auxquelles la France n'était pas conviée, et dont elle a appris l'existence par la presse — d'abord une, puis trois, puis toutes.`
+      );
+      p.push(
+        `${perdus} capitales avaient cessé de répondre. Le Quai d'Orsay a longtemps parlé de « tensions conjoncturelles », puis a cessé d'écrire des notes, faute d'interlocuteurs à qui les adresser. Une influence de ${Math.round(
+          s.country.influence
+        )}/100 ne se lit pas comme un chiffre : elle se lit dans le nombre de fois où un téléphone ne sonne pas.`
+      );
+      p.push(
+        s.bord >= 5
+          ? `Vous aviez promis de reprendre le contrôle et vous l'avez repris : le pays décide désormais tout seul de choses dont il ne décide plus rien, parce qu'elles se décident ailleurs, à vingt-six. La souveraineté retrouvée s'est révélée être une salle vide avec un très beau plafond.`
+          : `Vous aviez promis une autre Europe. Vous en avez obtenu une autre, en effet : celle qui se réunit sans vous. Les capitales qui partageaient vos idées ont, l'une après l'autre, préféré la table où l'on décide à celle où l'on a raison.`
+      );
+      p.push(
+        `Votre successeur a fait de la « réintégration » son premier chantier. Il lui a fallu six ans, et il a dû commencer par expliquer, dans chaque capitale, qu'il n'était pas vous.`
+      );
+      break;
+    }
+
+    case "europe_presidence": {
+      const amis = Object.values(s.europe.nations).filter((n) => n.relation >= 35).length;
+      p.push(
+        `Le traité porte le nom d'une ville et, dans toutes les langues du continent sauf le français, le vôtre en sous-titre. Il a fallu dix-neuf mois de ratification, deux référendums gagnés de justesse ailleurs, et ${amis} capitales qui ont tenu quand il aurait été plus simple de lâcher.`
+      );
+      p.push(
+        `Ce que les manuels retiendront, c'est le mécanisme de financement commun. Ce dont vous vous souviendrez, c'est d'une nuit de février, dans un couloir sans fenêtre, où tout a failli s'arrêter sur une virgule concernant les régions ultrapériphériques, et de la tête du juriste qui a trouvé la formulation à 4 h 10.`
+      );
+      p.push(
+        s.power.popularite < 45
+          ? `À l'intérieur, on vous a reproché tout cela sans discontinuer : les déplacements, les nuits blanches, les sommets pendant que le pays attendait. Ils n'avaient pas tort. On ne peut pas être partout, et vous avez choisi le continent. Votre popularité à ${Math.round(
+              s.power.popularite
+            )}/100 est le prix affiché de ce choix, et il était affiché dès le début.`
+          : `Le plus rare n'est pas d'avoir refait l'Europe : c'est de l'avoir fait sans que le pays vous le fasse payer. Il y a là une conjonction que personne n'a su reproduire depuis, et sur laquelle trois thèses ont été soutenues.`
+      );
+      p.push(
+        `Vous présidez aujourd'hui une institution qui n'existait pas quand vous êtes entré en fonction. ${
+          conjoint ? `${conjoint} vous fait remarquer que vous n'avez toujours pas pris de vacances. ` : ""
+        }Sur le mur du bureau, il y a une photographie de la salle de signature prise de très loin, pour qu'on voie surtout la salle.`
+      );
+      break;
+    }
+
     // -- Les sorties violentes ----------------------------------------------
     case "assassinat": {
       const parRancune = rancunier && rancunier.rancune >= 60;

@@ -1,4 +1,6 @@
 ﻿import type { Ctx, GameState } from "../../engine/types";
+import { NATIONS } from "./data";
+import { alliees, defDe, hostiles, majorite } from "../../engine/europe";
 
 // ---------------------------------------------------------------------------
 // Les actions de capital politique (3 points par semestre — jamais assez).
@@ -11,7 +13,7 @@ export interface ActionDef {
   detail: string;
   cond?: (s: GameState) => boolean;
   effects: (c: Ctx, param?: string) => string;
-  needParam?: "reforme" | "personnage" | "region";
+  needParam?: "reforme" | "personnage" | "region" | "nation";
   /** Candidats proposés quand l'action porte sur quelqu'un. */
   candidats?: (s: GameState) => string[];
   /** Toujours proposée (socle) plutôt que soumise au tirage. */
@@ -1103,6 +1105,229 @@ export const ACTIONS: ActionDef[] = [
       c.rel("andrieu", { ambition: 14 });
       c.log("La dissolution a tourné à la cohabitation.");
       return "Vingt-quatre jours de campagne éclair, et un dimanche soir où les cartes se remplissent d'une couleur qui n'est pas la vôtre. Vous aviez la popularité ; il vous manquait les circonscriptions, qui ne se sondent pas. Il faudra désormais partager le pouvoir avec quelqu'un qui vous doit sa fonction et rien d'autre.";
+    },
+  },
+
+  // --- L'Europe : la diplomatie ordinaire ----------------------------------
+  {
+    id: "bilateral",
+    nom: "Un tête-à-tête",
+    cout: 1,
+    detail: "Deux heures avec une capitale. Sans conseillers, sans communiqué.",
+    needParam: "nation",
+    candidats: (s) => NATIONS.filter((d) => s.europe.nations[d.id]).map((d) => d.id),
+    cooldown: 2,
+    icone: "⚑",
+    tone: "var(--color-monde)",
+    effects: (c, param) => {
+      const def = defDe(param ?? "allemagne");
+      if (!def) return "Aucune capitale choisie.";
+      const st = c.s.europe.nations[def.id];
+      const ecart = Math.abs(c.s.bord - st.bord);
+      // On ne rattrape pas idéologiquement ce qui sépare deux lignes. On peut
+      // seulement rendre le désaccord courtois — c'est déjà beaucoup.
+      const gain = Math.round(16 - ecart * 1.1 + c.s.player.charisme * 0.06);
+      c.nation(def.id, { relation: Math.max(3, gain), faveurs: 4 });
+      c.adj({ hidden: { fatigue: 4 }, country: { prestige: 1 } });
+      if (def.dirigeantId) c.rel(def.dirigeantId, { loyaute: 6 });
+      if (ecart >= 8) {
+        return `Deux heures à ${def.capitale}, dont quarante minutes sans interprète. Vous ne vous entendez sur rien et vous le dites franchement, ce qui vous rapproche davantage que six communiqués communs. On se quitte en sachant exactement où l'autre bloquera — dans ce métier, c'est le seul luxe.`;
+      }
+      return `Deux heures à ${def.capitale}, un déjeuner qui déborde, deux dossiers réglés dans le couloir. Rien qui se voie de Paris. Mais le jour où il faudra une voix de plus au Conseil, quelqu'un décrochera.`;
+    },
+  },
+  {
+    id: "conseil_europeen",
+    nom: "Monter au Conseil",
+    cout: 2,
+    detail: "Porter une initiative française. Il faut compter ses voix avant.",
+    cooldown: 3,
+    icone: "★",
+    tone: "var(--color-monde)",
+    effects: (c) => {
+      const maj = majorite(c.s);
+      const passe = maj + c.s.player.strategie * 0.15 + c.rng.int(-14, 14) > 58;
+      if (passe) {
+        c.adj({ country: { influence: 9, prestige: 5, marge: 3 }, power: { popularite: 4, presse: 3 } });
+        c.toutesNations({ relation: 2 }, hostiles(c.s).map((d) => d.id));
+        c.log("Une initiative française a été adoptée par le Conseil européen.");
+        return `Trente-neuf heures de sommet, deux nuits blanches, un texte réécrit six fois dans un couloir. Il sort avec votre nom dessus et deux tiers de ce que vous vouliez. À ${maj} % de voix acquises en entrant, c'était jouable ; ceux qui vous suivent aujourd'hui compteront la facture demain.`;
+      }
+      c.adj({ country: { influence: -7, prestige: -4 }, power: { popularite: -3, presse: -4 } });
+      c.nation("allemagne", { relation: -5 });
+      return `Trente-neuf heures de sommet pour un communiqué de onze lignes qui « prend note » de la proposition française. « Prendre note » est le mot que l'Europe emploie pour dire non sans humilier. À ${maj} % de voix acquises en entrant, il ne fallait pas y aller — ou il fallait y aller autrement.`;
+    },
+  },
+
+  // --- L'Europe : les occasions --------------------------------------------
+  {
+    id: "sommet_paris",
+    nom: "Convoquer un sommet à Paris",
+    cout: 2,
+    detail: "Vous pesez assez pour fixer l'ordre du jour de tout le monde.",
+    cond: (s) => s.country.influence > 62,
+    opportunite: true,
+    rarete: "exceptionnelle",
+    icone: "✦",
+    tone: "var(--color-monde)",
+    effects: (c) => {
+      c.adj({ country: { influence: 11, prestige: 8 }, power: { popularite: 5, presse: 5 }, hidden: { fatigue: 10 } });
+      c.toutesNations({ relation: 6 });
+      c.press("« Vingt-sept à Paris » — les images du Grand Palais tournent sur toutes les chaînes du continent", "favorable");
+      c.log("Vous avez convoqué et présidé un sommet européen à Paris.");
+      return "Convoquer, c'est déjà décider : celui qui fixe l'ordre du jour a gagné la moitié du sommet avant qu'il commence. Deux jours de Grand Palais, un communiqué où la France est citée quatre fois, et la découverte que la plupart des chefs d'État viennent surtout pour les couloirs.";
+    },
+  },
+  {
+    id: "coalition_bloc",
+    nom: "Former un bloc",
+    cout: 2,
+    detail: "Trois capitales qui votent ensemble, toujours. Ça change tout.",
+    cond: (s) => alliees(s).filter((d) => !d.institution && !d.horsUnion).length >= 2 && !s.flags["bloc_forme"],
+    opportunite: true,
+    rarete: "historique",
+    icone: "◈",
+    tone: "var(--color-monde)",
+    effects: (c) => {
+      const amis = alliees(c.s).filter((d) => !d.institution && !d.horsUnion);
+      c.flag("bloc_forme", amis.map((d) => d.id).join(","));
+      c.adj({ country: { influence: 16, prestige: 6 } });
+      for (const d of amis) c.nation(d.id, { relation: 10, faveurs: 8 });
+      // Ceux qui restent dehors voient très bien ce qui se construit.
+      c.toutesNations({ relation: -6 }, [...amis.map((d) => d.id), "commission"]);
+      c.sched("bloc_traite", 3, 6, 0.6);
+      c.log(`Vous avez formé un bloc avec ${amis.map((d) => d.capitale).join(" et ")}.`);
+      return `Un format à ${amis.length + 1}, une réunion préparatoire avant chaque Conseil, une position commune arrêtée en amont. ${amis.map((d) => d.capitale).join(" et ")} acceptent — non par affection, mais parce qu'un bloc pèse plus que la somme de ses membres. Les autres capitales comprennent en une semaine, et commencent à en construire un autre.`;
+    },
+  },
+  {
+    id: "veto",
+    nom: "Mettre le veto",
+    cout: 1,
+    detail: "Tout bloquer jusqu'à obtenir ce que vous voulez. Ça se paie longtemps.",
+    cond: (s) => majorite(s) < 46,
+    opportunite: true,
+    rarete: "rare",
+    icone: "⊘",
+    tone: "var(--color-bad)",
+    effects: (c) => {
+      c.adj({ country: { marge: 7, influence: -12, prestige: -5 }, power: { popularite: 6 } });
+      c.toutesNations({ relation: -14 }, ["hongrie"]);
+      c.nation("hongrie", { relation: 8 });
+      c.press("« LA FRANCE BLOQUE TOUT » — la presse allemande emploie le mot « chantage », la presse française le mot « fermeté »", "neutre");
+      c.log("Vous avez opposé votre veto au Conseil pour obtenir une contrepartie.");
+      return "Vous bloquez le paquet entier pour une ligne budgétaire. Ça marche : à quatre heures du matin, on vous donne ce que vous demandiez pour que le sommet finisse. Vous rentrez avec votre enveloppe et avec vingt-six capitales qui savent désormais que la France se paie. On vous le fera sentir à chaque vote, pendant des années.";
+    },
+  },
+  {
+    id: "accord_commercial",
+    nom: "Signer le grand accord",
+    cout: 2,
+    detail: "Des marchés ouverts contre des concessions. Les agriculteurs vont hurler.",
+    cond: (s) => alliees(s).some((d) => d.traits.includes("industrielle")),
+    opportunite: true,
+    rarete: "rare",
+    icone: "◧",
+    tone: "var(--color-eco)",
+    effects: (c) => {
+      c.dire("agriculture", "Aucun agriculteur français ne sera sacrifié à un traité. Aucun", "à la signature de l'accord");
+      c.adj({
+        country: { croissance: 0.9, chomage: -0.6, environnement: -6, influence: 5, prestige: 3 },
+        power: { patronat: 12, syndicats: -6, popularite: 2 },
+      });
+      c.seg("ruraux", { soutien: -10 });
+      c.seg("csp", { soutien: 6 });
+      c.sched("accord_agriculteurs", 2, 5, 0.7);
+      c.log("Un grand accord commercial a été signé.");
+      return "Quatre cents pages, dix-neuf ans de négociation, et une signature qui prend douze secondes. Les carnets de commandes de l'industrie se remplissent avant même la ratification. Dans les campagnes, on lit la même page et on y voit exactement l'inverse — et on n'a pas tort.";
+    },
+  },
+  {
+    id: "guerre_commerciale",
+    nom: "Passer aux représailles",
+    cout: 2,
+    detail: "Une capitale vous nuit. Répondre sur le terrain qui fait mal.",
+    cond: (s) => hostiles(s).some((d) => !d.institution),
+    opportunite: true,
+    rarete: "exceptionnelle",
+    icone: "⚔",
+    tone: "var(--color-bad)",
+    effects: (c) => {
+      const cible = hostiles(c.s).filter((d) => !d.institution)[0];
+      if (!cible) return "Plus personne à qui répondre.";
+      c.nation(cible.id, { relation: -22 });
+      c.toutesNations({ relation: -5 }, [cible.id]);
+      c.adj({ country: { croissance: -0.4, inflation: 0.6, influence: -6 }, power: { popularite: 7, patronat: -8 } });
+      c.press(`« PARIS RIPOSTE » — les mesures visant ${cible.nom} sont annoncées à 20 h, appliquées à minuit`, "neutre");
+      c.log(`Vous avez engagé des représailles commerciales contre ${cible.nom}.`);
+      return `Droits de douane ciblés, marchés publics fermés, deux licences d'exportation suspendues « pour vérification ». ${cible.capitale} répond en quarante-huit heures, sur vos produits les plus symboliques. L'opinion adore ; les industriels des deux pays paient ; et personne ne sait plus comment on s'arrête.`;
+    },
+  },
+
+  // --- L'Europe : l'arrière-cuisine ----------------------------------------
+  {
+    id: "circuit_etranger",
+    nom: "Ouvrir le circuit",
+    cout: 1,
+    detail: "Zeeman a un montage. Le parti respirerait enfin.",
+    cond: (s) => (s.power.parti < 48 || s.derive >= 2) && !s.europe.dossiers.some((d) => d.id === "circuit"),
+    opportunite: true,
+    rarete: "exceptionnelle",
+    icone: "◐",
+    tone: "var(--color-bad)",
+    effects: (c) => {
+      c.dossier("circuit", "Le financement du parti par un circuit étranger", 55);
+      c.adj({ power: { parti: 22, popularite: 2 }, player: { integrite: -10, cynisme: 8 } });
+      c.nation("paysbas", { savoir: 25 });
+      c.nation("royaumeuni", { savoir: 15 });
+      c.rel("zeeman", { loyaute: 15, ambition: 10 });
+      c.rel("espitalier", { loyaute: 10 });
+      c.sched("circuit_trace", 3, 7, 0.6);
+      c.log("Le parti est désormais financé par un circuit passant par trois juridictions.");
+      return "Une fondation à Amsterdam, une société de conseil à Jersey, une facture de « veille stratégique » de deux millions par trimestre. Joost Zeeman explique tout au tableau blanc, en trente minutes, et rien de ce qu'il décrit n'est illégal pris séparément. C'est l'assemblage qui l'est. Le trésorier respire pour la première fois depuis deux ans.";
+    },
+  },
+  {
+    id: "maquiller_deficit",
+    nom: "Arranger les comptes",
+    cout: 1,
+    detail: "Bercy sait faire. Bruxelles ne regarde pas si près.",
+    cond: (s) => (s.country.dette > 128 || s.country.marge < 26) && !s.europe.dossiers.some((d) => d.id === "comptes"),
+    opportunite: true,
+    rarete: "exceptionnelle",
+    icone: "▤",
+    tone: "var(--color-bad)",
+    effects: (c) => {
+      c.dossier("comptes", "La sincérité des comptes transmis à Bruxelles", 45);
+      c.adj({ country: { marge: 14, dette: -6 }, power: { popularite: 4, patronat: 5 }, player: { integrite: -8 } });
+      c.nation("commission", { savoir: 20, relation: 6 });
+      c.nation("allemagne", { savoir: 12 });
+      c.rel("danglade", { loyaute: -8, rancune: 10 });
+      c.sched("comptes_eurostat", 3, 8, 0.6);
+      c.log("Les comptes transmis à la Commission ont été « retraités ».");
+      return "Trois recettes exceptionnelles anticipées, deux dettes d'hôpitaux sorties du périmètre, une soulte requalifiée. Danglade signe en demandant que sa réserve figure au procès-verbal — ce qui, le jour venu, sera la seule ligne qui comptera. Bruxelles valide en six semaines. Eurostat, lui, prend deux ans, et il n'oublie pas.";
+    },
+  },
+  {
+    id: "operation_speciale",
+    nom: "Autoriser l'opération",
+    cout: 2,
+    detail: "Soubeyran, minuit, une chemise cartonnée. Il vaut mieux ne pas l'ouvrir.",
+    cond: (s) => s.derive >= 5 && s.power.armee > 45 && !s.europe.dossiers.some((d) => d.id === "operation"),
+    opportunite: true,
+    rarete: "historique",
+    icone: "☠",
+    tone: "var(--color-bad)",
+    effects: (c) => {
+      c.dossier("operation", "L'opération conduite à l'étranger sans mandat", 85);
+      c.derive(2);
+      c.adj({ country: { securite: 10 }, power: { armee: 8 }, hidden: { paranoia: 18 }, player: { integrite: -14, cynisme: 12 } });
+      c.rel("soubeyran", { loyaute: 12 });
+      c.nation("royaumeuni", { savoir: 30 });
+      c.toutesNations({ savoir: 8 }, ["royaumeuni"]);
+      c.sched("operation_suite", 2, 5, 0.8);
+      c.log("Vous avez autorisé une opération clandestine hors du territoire.");
+      return "La chemise contient quatre pages et une photographie. Soubeyran ne dit pas le mot, il dit « neutralisation d'une capacité de nuisance », et il attend. Vous signez en bas à droite. Onze jours plus tard, un fait divers à l'étranger occupe deux colonnes puis disparaît. Vous êtes désormais quelqu'un que trois personnes peuvent détruire d'une phrase.";
     },
   },
 ];

@@ -2,9 +2,9 @@
 import type { GameState } from "../engine/types";
 import { useGame } from "../store";
 import { ACTIONS, REFORMES, type ActionDef, type OpportuniteRarete } from "../content/france/actions";
-import { CAST, CAST_TAGS } from "../content/france/data";
+import { CAST, CAST_TAGS, NATIONS } from "../content/france/data";
 import { nomCompletDe, substituerNoms } from "../engine/noms";
-import { DeltaChips, EventView, Ledger, PressList, StatsTabs, Tag, TopBar } from "./components";
+import { DeltaChips, etiquetteRelation, EventView, Ledger, PressList, StatsTabs, Tag, TopBar } from "./components";
 import { RichText } from "./RichText";
 
 const REFORME_TONE: Record<string, string> = {
@@ -84,6 +84,7 @@ export default function Mandate({ s }: { s: GameState }) {
   const finishTurn = useGame((g) => g.finishTurn);
   const [reformesOuvertes, setReformesOuvertes] = useState(false);
   const [personnagesPour, setPersonnagesPour] = useState<ActionDef | null>(null);
+  const [nationsPour, setNationsPour] = useState<ActionDef | null>(null);
   const enCrise = s.act === "crise";
 
   // Le menu du semestre a été tiré au début du tour par le moteur.
@@ -96,6 +97,7 @@ export default function Mandate({ s }: { s: GameState }) {
   const lancer = (a: ActionDef) => {
     if (a.needParam === "reforme") setReformesOuvertes(true);
     else if (a.needParam === "personnage") setPersonnagesPour(a);
+    else if (a.needParam === "nation") setNationsPour(a);
     else doAction(a.id);
   };
 
@@ -241,6 +243,42 @@ export default function Mandate({ s }: { s: GameState }) {
                     );
                   })}
                   <button className="text-[11px] underline" style={{ color: "var(--color-faint)" }} onClick={() => setPersonnagesPour(null)}>
+                    ← Revenir
+                  </button>
+                </div>
+              ) : nationsPour ? (
+                <div className="space-y-2 fade-in">
+                  <div className="label mb-2">Quelle capitale ?</div>
+                  {(nationsPour.candidats?.(s) ?? []).map((id) => {
+                    const def = NATIONS.find((x) => x.id === id);
+                    const st = s.europe.nations[id];
+                    if (!def || !st) return null;
+                    const [libelle, ton] = etiquetteRelation(st.relation);
+                    const ecart = Math.abs(s.bord - st.bord);
+                    return (
+                      <button
+                        key={id}
+                        className="btn-choice"
+                        style={{ "--tone": ton } as React.CSSProperties}
+                        onClick={() => {
+                          doAction(nationsPour.id, id);
+                          setNationsPour(null);
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-[13px]">{def.nom}</span>
+                          <div className="flex gap-1">
+                            <Tag tone={ton}>{libelle}</Tag>
+                            {def.poids >= 60 && <Tag tone="var(--color-monde)">Poids lourd</Tag>}
+                          </div>
+                        </div>
+                        <div className="text-[11px] mt-0.5" style={{ color: "var(--color-faint)" }}>
+                          {def.capitale} · {ecart <= 3 ? "ligne proche de la vôtre" : ecart <= 6 ? "ligne différente" : "à l'opposé de vous"}
+                        </div>
+                      </button>
+                    );
+                  })}
+                  <button className="text-[11px] underline" style={{ color: "var(--color-faint)" }} onClick={() => setNationsPour(null)}>
                     ← Revenir
                   </button>
                 </div>
