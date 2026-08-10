@@ -9,5 +9,44 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!--
+      Filet de dernier recours, volontairement hors du bundle : si le module
+      principal ne se charge pas (un index.html périmé en cache pointant vers un
+      hash d'assets supprimé depuis), aucun écran du jeu ne peut s'afficher et
+      le joueur n'a qu'une page noire. On lui propose alors le seul geste utile :
+      redemander l'index au serveur au lieu du disque.
+    -->
+    <script>
+      (function () {
+        var secours = function (raison) {
+          var root = document.getElementById("root");
+          if (!root || root.childElementCount > 0) return;
+          root.innerHTML =
+            '<div style="max-width:26rem;margin:18vh auto;padding:0 1.5rem;font-family:Georgia,serif;color:#a5a3c0;text-align:center">' +
+            '<div style="font-size:1.6rem;letter-spacing:.3em;color:#eceafa;margin-bottom:1.5rem">M A N D A T</div>' +
+            '<p style="font-size:.95rem;line-height:1.6">Le jeu n\'a pas pu se charger. C\'est presque toujours une version périmée gardée en cache par le navigateur.</p>' +
+            '<button id="mandat-recharger" style="margin-top:1.25rem;padding:.6rem 1.4rem;border-radius:.6rem;border:1px solid #363b52;background:#1c1e2c;color:#eceafa;font-family:inherit;font-size:.95rem;cursor:pointer">Recharger la dernière version</button>' +
+            '<p style="font-size:.75rem;margin-top:1.5rem;opacity:.6">Votre partie en cours est conservée.</p>' +
+            "</div>";
+          document.getElementById("mandat-recharger").onclick = function () {
+            // Un paramètre neuf force le navigateur à redemander l'index au
+            // serveur plutôt qu'à son disque.
+            location.replace(location.pathname + "?v=" + Date.now());
+          };
+          if (raison) console.error("[MANDAT] démarrage impossible :", raison);
+        };
+        // Un module qui échoue au chargement lève un « error » sur sa balise.
+        window.addEventListener(
+          "error",
+          function (e) {
+            if (e.target && e.target.tagName === "SCRIPT") secours("script " + (e.target.src || ""));
+          },
+          true
+        );
+        // Ceinture et bretelles : si rien n'est monté au bout de dix secondes,
+        // c'est que rien ne le sera.
+        setTimeout(function () { secours(null); }, 10000);
+      })();
+    </script>
   </body>
 </html>
