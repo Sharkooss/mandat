@@ -1,4 +1,4 @@
-import type { GameEvent } from "../../engine/types";
+﻿import type { GameEvent } from "../../engine/types";
 
 // ---------------------------------------------------------------------------
 // Acte II — L'ascension. Court, scripté, mais chaque choix laisse des traces

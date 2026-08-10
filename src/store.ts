@@ -1,4 +1,4 @@
-import { create } from "zustand";
+﻿import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Bio, GameState } from "./engine/types";
 import { makeInitialState, applyBio, rngOf, normalizeState } from "./engine/init";
@@ -11,10 +11,34 @@ import { ASCENSION_SEQUENCE } from "./content/france/ascension";
 import { EVENTS_CAMPAGNE } from "./content/france/campagne";
 import { ACTIONS, REFORMES } from "./content/france/actions";
 import { buildEnding, checkEndings, type EndingCause } from "./content/france/fins";
-import { computeDeltas, computeSignals, snapshot } from "./engine/deltas";
-import { PRENOMS_F, PRENOMS_M, NOMS, REGIONS, MILIEUX, FORMATIONS, EVENEMENTS_FONDATEURS, MENTORS, SEGMENTS } from "./content/france/data";
+import { computeDeltas, computeSignals, pushLedger, snapshot } from "./engine/deltas";
+import {
+  PRENOMS_F,
+  PRENOMS_M,
+  NOMS as NOMS_FAMILLE,
+  REGIONS,
+  MILIEUX,
+  FORMATIONS,
+  EVENEMENTS_FONDATEURS,
+  MENTORS,
+  SEGMENTS,
+  CAST,
+  PROMESSES,
+} from "./content/france/data";
 
 const SEG_NOMS: Record<string, string> = Object.fromEntries(SEGMENTS.map((s) => [s.id, s.nom]));
+const NOMS = {
+  segments: SEG_NOMS,
+  personnages: Object.fromEntries(CAST.map((c) => [c.id, c.nom])),
+  promesses: Object.fromEntries(PROMESSES.map((p) => [p.id, p.label])),
+};
+
+/** Calcule les variations d'une décision et les inscrit au journal des impacts. */
+function recordImpacts(s: GameState, avant: ReturnType<typeof snapshot>): void {
+  s.lastDeltas = computeDeltas(avant, s, SEG_NOMS);
+  s.lastSignals = computeSignals(avant, s);
+  pushLedger(avant, s, s.lastDeltas, s.lastSignals, NOMS);
+}
 
 export interface PantheonEntry {
   nom: string;
@@ -31,6 +55,8 @@ interface Store {
   /** Dernière erreur d'action — affichée au joueur plutôt que subie en silence. */
   lastError: string | null;
   clearError: () => void;
+  /** Met un personnage en avant dans le panneau Entourage (clic dans un texte). */
+  setFocus: (id: string | null) => void;
   newGame: () => void;
   abandon: () => void;
   submitBio: (bio: Bio) => void;
@@ -47,7 +73,7 @@ interface Store {
   finishElection: () => void;
 }
 
-const DEBATE_OFFSET = 4; // le débat a lieu à totalWeeks - 4
+const DEBATE_OFFSET = 2; // le débat a lieu à totalWeeks - 2
 
 function clone(s: GameState): GameState {
   return structuredClone(s);
@@ -65,12 +91,12 @@ function pantheonFrom(s: GameState): PantheonEntry {
     ending: s.ending?.nom ?? "?",
     famille: s.ending?.famille ?? "?",
     rarete: s.ending?.rarete ?? "?",
-    annees: Math.max(0, Math.round(s.turnCount / 4)),
+    annees: Math.max(0, Math.round(s.turnCount / 2)),
     date: new Date().toISOString().slice(0, 10),
   };
 }
 
-/** Démarre un trimestre : briefing, symptômes, sélection des événements. */
+/** Démarre un semestre : briefing, symptômes, sélection des événements. */
 function startTurn(s: GameState): void {
   const rng = rngOf(s);
   s.turn += 1;
@@ -82,6 +108,28 @@ function startTurn(s: GameState): void {
   if (s.hidden.sante < 40) pc -= 1;
   s.pc = Math.max(1, pc);
   s.pcMax = s.pc;
+
+  // Le menu du semestre : le socle, quatre actions tirées, et les opportunités
+  // que la situation ouvre. Deux semestres ne se ressemblent jamais tout à fait.
+  const dispo = (a: (typeof ACTIONS)[number]) => {
+    if (a.cond && !a.cond(s)) return false;
+    const utilise = s.actionCooldown[a.id];
+    if (utilise !== undefined && a.cooldown && s.turnCount - utilise < a.cooldown) return false;
+    return true;
+  };
+  const tirables = ACTIONS.filter((a) => !a.socle && !a.opportunite && dispo(a));
+  const tires: string[] = [];
+  while (tires.length < 4 && tirables.length > 0) {
+    const choisi = rng.pick(tirables);
+    tirables.splice(tirables.indexOf(choisi), 1);
+    tires.push(choisi.id);
+  }
+  s.actionPool = [
+    ...ACTIONS.filter((a) => a.socle).map((a) => a.id),
+    ...tires,
+    ...ACTIONS.filter((a) => a.opportunite && dispo(a)).map((a) => a.id),
+  ];
+
   updateTrends(s);
   genBriefing(s, rng);
   selectTurnEvents(s, rng);
@@ -90,7 +138,7 @@ function startTurn(s: GameState): void {
   s.rngCalls = rng.state();
 }
 
-/** Fin de trimestre : simulation, vérification des fins, échéances électorales. */
+/** Fin de semestre : simulation, vérification des fins, échéances électorales. */
 function endTurnFlow(s: GameState): void {
   const rng = rngOf(s);
   endOfTurn(s, rng);
@@ -119,8 +167,8 @@ function endTurnFlow(s: GameState): void {
     return;
   }
 
-  // Fin de mandat ?
-  if (s.turn >= 20) {
+  // Fin de mandat ? Dix semestres = cinq ans.
+  if (s.turn >= 10) {
     if (s.mandat === 1) {
       if (s.flags["retrait_annonce"]) {
         endGame(s, "retrait_volontaire");
@@ -162,6 +210,12 @@ export const useGame = create<Store>()(
 
       clearError: () => set({ lastError: null }),
 
+      setFocus: (id) => {
+        const g = get().game;
+        if (!g) return;
+        set({ game: { ...g, focusCharacter: id } });
+      },
+
       newGame: () => {
         set({ game: makeInitialState(randomSeed()) });
       },
@@ -172,7 +226,7 @@ export const useGame = create<Store>()(
         const s = clone(get().game!);
         const rng = rngOf(s);
         if (!bio.prenom) bio.prenom = rng.pick(bio.genre === "f" ? PRENOMS_F : PRENOMS_M);
-        if (!bio.nom) bio.nom = rng.pick(NOMS);
+        if (!bio.nom) bio.nom = rng.pick(NOMS_FAMILLE);
         if (!bio.conjointPrenom) bio.conjointPrenom = rng.pick(bio.genre === "f" ? PRENOMS_M : PRENOMS_F);
         applyBio(s, bio);
         s.act = "ascension";
@@ -206,14 +260,14 @@ export const useGame = create<Store>()(
         const s = clone(get().game!);
         const ev = s.currentEvent ? getEvent(s.currentEvent) : null;
         if (!ev) return;
-        const choice = ev.choices.find((c) => c.id === choiceId);
+        const tous = [...ev.choices, ...(ev.dynamicChoices?.(s) ?? [])];
+        const choice = tous.find((c) => c.id === choiceId);
         if (!choice) return;
         const rng = rngOf(s);
         const ctx = makeCtx(s, rng);
         const avant = snapshot(s);
         s.resolution = choice.effects(ctx);
-        s.lastDeltas = computeDeltas(avant, s, SEG_NOMS);
-        s.lastSignals = computeSignals(avant, s);
+        recordImpacts(s, avant);
         s.rngCalls = rng.state();
         set({ game: s });
       },
@@ -246,7 +300,7 @@ export const useGame = create<Store>()(
             set({ game: s });
             return;
           }
-          // La crise est traversée : elle consume le reste du trimestre.
+          // La crise est traversée : elle consume le reste du semestre.
           s.crisis = null;
           s.act = "mandat";
           s.currentEvent = null;
@@ -318,10 +372,10 @@ export const useGame = create<Store>()(
         const ctx = makeCtx(s, rng);
         const avant = snapshot(s);
         s.resolution = action.effects(ctx, param);
-        s.lastDeltas = computeDeltas(avant, s, SEG_NOMS);
-        s.lastSignals = computeSignals(avant, s);
+        recordImpacts(s, avant);
         s.pc -= cout;
         s.actionsUsed.push(actionId === "reforme" ? `reforme:${param}` : actionId);
+        s.actionCooldown[actionId] = s.turnCount;
         s.rngCalls = rng.state();
         set({ game: s });
       },
@@ -350,11 +404,11 @@ export const useGame = create<Store>()(
         const rng = rngOf(s);
         const avant = snapshot(s);
         s.resolution = applyCampaignAction(s, rng, actionId, segmentId);
-        s.lastDeltas = computeDeltas(avant, s, SEG_NOMS);
-        s.lastSignals = computeSignals(avant, s);
+        recordImpacts(s, avant);
 
-        // Un événement de campagne peut surgir.
-        if (rng.chance(0.3)) {
+        // Un événement de campagne peut surgir — la campagne est courte,
+        // il faut qu'il s'y passe quelque chose presque chaque semaine.
+        if (rng.chance(0.5)) {
           const pool = EVENTS_CAMPAGNE.filter(
             (e) => !s.fired.includes(e.id) && (!e.cond || e.cond(s))
           );
@@ -374,8 +428,7 @@ export const useGame = create<Store>()(
         const rng = rngOf(s);
         const avant = snapshot(s);
         s.resolution = runDebate(s, rng, beats);
-        s.lastDeltas = computeDeltas(avant, s, SEG_NOMS);
-        s.lastSignals = computeSignals(avant, s);
+        recordImpacts(s, avant);
         s.rngCalls = rng.state();
         set({ game: s });
       },
@@ -433,7 +486,7 @@ export const useGame = create<Store>()(
     },
     {
       name: "mandat-save",
-      version: 2,
+      version: 3,
       // Une partie commencée sur une version antérieure doit rester jouable :
       // on recomplète les champs apparus depuis plutôt que de la jeter.
       migrate: (persisted) => {

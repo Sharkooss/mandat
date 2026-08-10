@@ -1,9 +1,10 @@
-import { useState } from "react";
+﻿import { useEffect, useState } from "react";
 import type { GameEvent, GameState, PressItem, Rarete } from "../engine/types";
 import type { Delta } from "../engine/deltas";
 import { CAST, CAST_TAGS, SEGMENTS, PROMESSES } from "../content/france/data";
 import { getEvent } from "../engine/registry";
 import { useGame } from "../store";
+import { RichText } from "./RichText";
 
 // ---------------------------------------------------------------------------
 // Couleurs sémantiques
@@ -49,18 +50,40 @@ export function rareteOf(ev: GameEvent): Rarete {
   return "commune";
 }
 
-export function Tag({ tone, children }: { tone: string; children: React.ReactNode }) {
+export function Tag({ tone, children, aide }: { tone: string; children: React.ReactNode; aide?: string }) {
   return (
-    <span className="tag" style={{ "--tone": tone } as React.CSSProperties}>
+    <span className="tag" style={{ "--tone": tone } as React.CSSProperties} data-aide={aide || undefined}>
       {children}
     </span>
   );
 }
 
+/** Textes d'aide au survol — le jeu doit s'expliquer sans manuel. */
+export const AIDE: Record<string, string> = {
+  biaise:
+    "Cette personne vous rapporte des chiffres déformés : elle minimise ou exagère selon son intérêt. Demandez une seconde source pour connaître la réalité.",
+  ambitieux:
+    "Elle vise votre place ou une plus grande. Une popularité en baisse la rend plus dangereuse ; un poste prestigieux la calme un temps.",
+  rancune:
+    "Vous lui avez fait du tort et elle ne l'a pas digéré. Une rancune élevée finit par se payer : fuite, trahison, témoignage à charge.",
+  devoue: "Vous suivra même contre son intérêt.",
+  loyal: "Fidèle tant que vous tenez debout.",
+  distant: "Ni avec vous, ni contre vous. Attend de voir.",
+  froid: "Ne vous défendra pas publiquement.",
+  hostile: "Cherche activement à vous nuire.",
+  critique: "Cet indicateur est dans le rouge : il déclenche des événements négatifs et pèse sur votre bilan final.",
+  commune: "Événement fréquent.",
+  peu_commune: "Événement peu fréquent.",
+  rare: "Événement rare — souvent lié à une intrigue au long cours.",
+  legendaire: "Séquence exceptionnelle. Peu de parties la voient.",
+  promesse: "Mesure promise pendant la campagne. La presse et les électeurs vérifient si vous la tenez.",
+  capital: "Votre temps et votre énergie politique du semestre. Il n'y en a jamais assez : choisir, c'est renoncer.",
+};
+
 export function RareteBadge({ rarete }: { rarete: Rarete }) {
   const m = RARETE_META[rarete];
   return (
-    <Tag tone={m.tone}>
+    <Tag tone={m.tone} aide={AIDE[rarete]}>
       {rarete === "legendaire" ? "✦" : rarete === "rare" ? "◆" : rarete === "peu_commune" ? "◈" : "◇"} {m.label}
     </Tag>
   );
@@ -91,7 +114,7 @@ function Trend({ v, inverse }: { v: number | undefined; inverse?: boolean }) {
   if (v === undefined || Math.abs(v) < 0.4) return <span style={{ color: "var(--color-faint)" }}>→</span>;
   const bon = inverse ? v < 0 : v > 0;
   return (
-    <span style={{ color: bon ? "var(--color-good)" : "var(--color-bad)" }} title={`${v > 0 ? "+" : ""}${Math.round(v * 10) / 10} ce trimestre`}>
+    <span style={{ color: bon ? "var(--color-good)" : "var(--color-bad)" }} title={`${v > 0 ? "+" : ""}${Math.round(v * 10) / 10} ce semestre`}>
       {v > 0 ? "↗" : "↘"}
     </span>
   );
@@ -203,9 +226,9 @@ export function PressList({ items }: { items: PressItem[] }) {
             ◐ {it.text}
           </div>
         ) : (
-          <div key={i} className="text-[13px] leading-relaxed" style={{ color: TONE_PRESSE[it.tone] === "var(--color-text)" ? "var(--color-muted)" : TONE_PRESSE[it.tone] }}>
+          <RichText key={i} className="text-[13px] leading-relaxed" style={{ color: TONE_PRESSE[it.tone] === "var(--color-text)" ? "var(--color-muted)" : TONE_PRESSE[it.tone] }}>
             {it.text}
-          </div>
+          </RichText>
         )
       )}
     </div>
@@ -221,7 +244,7 @@ const KIND_META: Record<string, { label: string; tone: string }> = {
   intrigue: { label: "Dossier sensible", tone: "var(--color-monde)" },
   monde: { label: "Le monde", tone: "var(--color-eco)" },
   perso: { label: "Vie privée", tone: "var(--color-env)" },
-  standard: { label: "Le trimestre", tone: "var(--color-secu)" },
+  standard: { label: "Le semestre", tone: "var(--color-secu)" },
   ascension: { label: "L'ascension", tone: "var(--color-pouvoir)" },
   campagne: { label: "Campagne", tone: "var(--color-social)" },
 };
@@ -255,11 +278,11 @@ export function EventView({ s }: { s: GameState }) {
 
       {!s.resolution ? (
         <>
-          <p className="text-[15px] leading-relaxed mb-5" style={{ color: "color-mix(in srgb, var(--color-text) 88%, transparent)" }}>
+          <RichText className="text-[15px] leading-relaxed mb-5" style={{ color: "color-mix(in srgb, var(--color-text) 88%, transparent)" }}>
             {texte}
-          </p>
+          </RichText>
           <div className="space-y-2 stagger">
-            {ev.choices
+            {[...ev.choices, ...(ev.dynamicChoices?.(s) ?? [])]
               .filter((c) => !c.cond || c.cond(s))
               .map((c, i) => (
                 <button
@@ -280,12 +303,12 @@ export function EventView({ s }: { s: GameState }) {
         </>
       ) : (
         <div className="fade-in">
-          <p
+          <RichText
             className="text-[15px] leading-relaxed pl-4 border-l-2"
             style={{ borderColor: "var(--accent)", color: "color-mix(in srgb, var(--color-text) 88%, transparent)" }}
           >
             {s.resolution}
-          </p>
+          </RichText>
           <DeltaChips deltas={s.lastDeltas} signals={s.lastSignals} />
           <button className="btn-primary mt-5" onClick={continueAfter}>
             Continuer
@@ -300,12 +323,12 @@ export function EventView({ s }: { s: GameState }) {
 // Entourage : tags de fonction + relation visuelle
 // ---------------------------------------------------------------------------
 
-function relationMeta(l: number): { label: string; tone: string; niveau: number } {
-  if (l >= 75) return { label: "Dévoué", tone: "var(--color-good)", niveau: 5 };
-  if (l >= 55) return { label: "Loyal", tone: "var(--color-env)", niveau: 4 };
-  if (l >= 35) return { label: "Distant", tone: "var(--color-warn)", niveau: 3 };
-  if (l >= 15) return { label: "Froid", tone: "var(--color-social)", niveau: 2 };
-  return { label: "Hostile", tone: "var(--color-bad)", niveau: 1 };
+function relationMeta(l: number): { label: string; tone: string; niveau: number; aide: string } {
+  if (l >= 75) return { label: "Dévoué", tone: "var(--color-good)", niveau: 5, aide: AIDE.devoue };
+  if (l >= 55) return { label: "Loyal", tone: "var(--color-env)", niveau: 4, aide: AIDE.loyal };
+  if (l >= 35) return { label: "Distant", tone: "var(--color-warn)", niveau: 3, aide: AIDE.distant };
+  if (l >= 15) return { label: "Froid", tone: "var(--color-social)", niveau: 2, aide: AIDE.froid };
+  return { label: "Hostile", tone: "var(--color-bad)", niveau: 1, aide: AIDE.hostile };
 }
 
 function RelationBars({ niveau, tone }: { niveau: number; tone: string }) {
@@ -329,6 +352,8 @@ function RelationBars({ niveau, tone }: { niveau: number; tone: string }) {
 
 function Entourage({ s }: { s: GameState }) {
   const [filtre, setFiltre] = useState<string | null>(null);
+  const setFocus = useGame((g) => g.setFocus);
+  const focus = s.focusCharacter;
   const camps = [
     ["gouvernement", "Gouvernement"],
     ["parti", "Parti"],
@@ -339,10 +364,22 @@ function Entourage({ s }: { s: GameState }) {
     ["intime", "Intimes"],
   ] as const;
 
-  const liste = CAST.filter((c) => s.characters[c.id]?.vivant && (!filtre || c.camp === filtre));
+  // Le personnage cliqué dans un texte remonte en tête de liste.
+  const liste = CAST.filter((c) => s.characters[c.id]?.vivant && (!filtre || c.camp === filtre)).sort((a, b) =>
+    a.id === focus ? -1 : b.id === focus ? 1 : 0
+  );
 
   return (
     <div>
+      {focus && (
+        <button
+          className="chip mb-2"
+          style={{ "--tone": "var(--accent)", cursor: "pointer" } as React.CSSProperties}
+          onClick={() => setFocus(null)}
+        >
+          ✕ Ne plus suivre {CAST.find((c) => c.id === focus)?.nom}
+        </button>
+      )}
       <div className="flex flex-wrap gap-1 mb-3">
         <button onClick={() => setFiltre(null)} className="tag" style={{ "--tone": filtre === null ? "var(--color-text)" : "var(--color-faint)" } as React.CSSProperties}>
           Tous
@@ -364,18 +401,42 @@ function Entourage({ s }: { s: GameState }) {
           const st = s.characters[c.id];
           const nom = c.id === "conjoint" ? s.bio.conjointPrenom : c.nom;
           const rel = relationMeta(st.loyaute);
+          const cible = focus === c.id;
           return (
-            <div key={c.id} className="card-flat px-2.5 py-2" style={{ borderLeft: `3px solid ${CAMP_TONE[c.camp]}` }}>
+            <div
+              key={c.id}
+              className={`card-flat px-2.5 py-2 ${cible ? "pop-in" : ""}`}
+              style={{
+                borderLeft: `3px solid ${CAMP_TONE[c.camp]}`,
+                boxShadow: cible ? `0 0 0 2px ${CAMP_TONE[c.camp]}` : undefined,
+              }}
+            >
               <div className="flex items-center justify-between gap-2">
                 <span className={`text-[13px] font-semibold ${st.enPoste ? "" : "line-through opacity-50"}`}>{nom}</span>
                 <RelationBars niveau={rel.niveau} tone={rel.tone} />
               </div>
               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                <Tag tone={CAMP_TONE[c.camp]}>{CAST_TAGS[c.id] ?? c.role}</Tag>
-                <Tag tone={rel.tone}>{rel.label}</Tag>
-                {st.ambition >= 65 && <Tag tone="var(--color-warn)">⚑ Ambitieux</Tag>}
-                {st.rancune >= 30 && <Tag tone="var(--color-bad)">⚔ Rancune</Tag>}
-                {c.biais && <Tag tone="var(--color-faint)">⚠ Biaisé</Tag>}
+                <Tag tone={CAMP_TONE[c.camp]} aide={c.role}>
+                  {CAST_TAGS[c.id] ?? c.role}
+                </Tag>
+                <Tag tone={rel.tone} aide={rel.aide}>
+                  {rel.label}
+                </Tag>
+                {st.ambition >= 65 && (
+                  <Tag tone="var(--color-warn)" aide={AIDE.ambitieux}>
+                    ⚑ Ambitieux
+                  </Tag>
+                )}
+                {st.rancune >= 30 && (
+                  <Tag tone="var(--color-bad)" aide={AIDE.rancune}>
+                    ⚔ Rancune
+                  </Tag>
+                )}
+                {c.biais && (
+                  <Tag tone="var(--color-faint)" aide={`${AIDE.biaise} Ici : ${c.biais}.`}>
+                    ⚠ Biaisé
+                  </Tag>
+                )}
               </div>
             </div>
           );
@@ -391,6 +452,11 @@ function Entourage({ s }: { s: GameState }) {
 
 export function StatsTabs({ s }: { s: GameState }) {
   const [tab, setTab] = useState<"pays" | "pouvoir" | "vous" | "promesses" | "entourage">("pays");
+
+  // Cliquer sur un nom dans un texte ouvre directement l'entourage.
+  useEffect(() => {
+    if (s.focusCharacter) setTab("entourage");
+  }, [s.focusCharacter]);
   const tabs = [
     ["pays", "Pays", "var(--color-eco)"],
     ["pouvoir", "Pouvoir", "var(--color-pouvoir)"],
@@ -615,6 +681,79 @@ function Promesses({ s }: { s: GameState }) {
 }
 
 // ---------------------------------------------------------------------------
+// Le journal des impacts — le suivi permanent de ce que vos choix produisent
+// ---------------------------------------------------------------------------
+
+const KIND_ICONE: Record<string, string> = {
+  stat: "◆",
+  relation: "◈",
+  promesse: "★",
+  signal: "◐",
+};
+
+export function Ledger({ s }: { s: GameState }) {
+  const [ouvert, setOuvert] = useState(true);
+  if (s.ledger.length === 0) return null;
+
+  // Regroupé par semestre, du plus récent au plus ancien.
+  const groupes: { turn: number; entries: typeof s.ledger }[] = [];
+  for (const e of s.ledger) {
+    const dernier = groupes[groupes.length - 1];
+    if (dernier && dernier.turn === e.turn) dernier.entries.push(e);
+    else groupes.push({ turn: e.turn, entries: [e] });
+  }
+
+  return (
+    <div className="card p-3">
+      <button className="flex items-center justify-between w-full mb-2" onClick={() => setOuvert(!ouvert)}>
+        <span className="label" data-aide="Chaque conséquence chiffrée de vos décisions, semestre par semestre.">
+          Journal des impacts
+        </span>
+        <span className="text-[11px]" style={{ color: "var(--color-faint)" }}>
+          {ouvert ? "▾" : "▸"}
+        </span>
+      </button>
+      {ouvert && (
+        <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+          {groupes.slice(0, 8).map((gr, gi) => (
+            <div key={gi}>
+              <div className="text-[9px] uppercase tracking-wider mb-1" style={{ color: "var(--color-faint)" }}>
+                Semestre {gr.turn}
+              </div>
+              <div className="space-y-0.5">
+                {gr.entries.map((e, i) => (
+                  <div
+                    key={i}
+                    className="flex items-baseline justify-between gap-2 text-[11px] px-1.5 py-1 rounded"
+                    style={{ background: "color-mix(in srgb, var(--color-surface-2) 60%, transparent)" }}
+                  >
+                    <span className="flex items-baseline gap-1.5 min-w-0">
+                      <span style={{ color: e.bon ? "var(--color-good)" : "var(--color-bad)", fontSize: 8 }}>
+                        {KIND_ICONE[e.kind]}
+                      </span>
+                      <span className="truncate" style={{ color: "var(--color-muted)" }}>
+                        {e.label}
+                      </span>
+                    </span>
+                    {e.value !== undefined && (
+                      <b className="tabular-nums shrink-0" style={{ color: e.bon ? "var(--color-good)" : "var(--color-bad)" }}>
+                        {e.value > 0 ? "+" : ""}
+                        {e.value}
+                        {e.suffix ?? ""}
+                      </b>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Barre du haut
 // ---------------------------------------------------------------------------
 
@@ -631,7 +770,7 @@ export function TopBar({ s }: { s: GameState }) {
             {s.bio.prenom} {s.bio.nom}
           </div>
           <div className="text-[11px]" style={{ color: "var(--color-faint)" }}>
-            {s.act === "mandat" || s.act === "crise" ? `Mandat ${s.mandat} · T${s.trimestre} ${s.year} · ${s.bio.age} ans` : `${s.bio.age} ans`}
+            {s.act === "mandat" || s.act === "crise" ? `Mandat ${s.mandat} · T${s.semestre} ${s.year} · ${s.bio.age} ans` : `${s.bio.age} ans`}
           </div>
         </div>
         {deriveTier < 2 && (

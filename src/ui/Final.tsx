@@ -1,4 +1,4 @@
-import type { GameState } from "../engine/types";
+﻿import type { GameState } from "../engine/types";
 import { useGame } from "../store";
 import { Tag } from "./components";
 
@@ -53,7 +53,7 @@ export default function Final({ s }: { s: GameState }) {
     ctx.fillStyle = "#eceafa";
     ctx.font = "bold 40px Georgia";
     ctx.fillText(`${s.bio.prenom} ${s.bio.nom}`, 400, 152);
-    const annees = Math.max(0, Math.round(s.turnCount / 4));
+    const annees = Math.max(0, Math.round(s.turnCount / 2));
     ctx.font = "20px Georgia";
     ctx.fillStyle = "#a5a3c0";
     ctx.fillText(`${annees} an${annees > 1 ? "s" : ""} au pouvoir · ${s.year - annees}–${s.year}`, 400, 190);
@@ -115,7 +115,7 @@ export default function Final({ s }: { s: GameState }) {
         <div className="flex justify-center gap-1.5 mb-3 flex-wrap">
           <Tag tone={tone}>{e.famille}</Tag>
           <Tag tone={tone}>Fin {e.rarete}</Tag>
-          <Tag tone="var(--color-perso)">{Math.max(0, Math.round(s.turnCount / 4))} ans au pouvoir</Tag>
+          <Tag tone="var(--color-perso)">{Math.max(0, Math.round(s.turnCount / 2))} ans au pouvoir</Tag>
         </div>
         <p className="text-[14px] italic mb-5 max-w-lg mx-auto" style={{ color: "var(--color-muted)" }}>
           {e.epitaphe}

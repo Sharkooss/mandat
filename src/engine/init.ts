@@ -1,4 +1,4 @@
-import type { Bio, GameState } from "./types";
+﻿import type { Bio, GameState } from "./types";
 import { CAST, SEGMENTS } from "../content/france/data";
 import { makeRng, type Rng } from "./rng";
 
@@ -19,7 +19,7 @@ export function makeInitialState(seed: number): GameState {
     turn: 0,
     mandat: 0,
     year: new Date().getFullYear(),
-    trimestre: 1,
+    semestre: 1,
     bio: {
       prenom: "",
       nom: "",
@@ -53,6 +53,11 @@ export function makeInitialState(seed: number): GameState {
     lastSignals: [],
     trends: {},
     trendBase: {},
+    lastSeen: {},
+    ledger: [],
+    actionPool: [],
+    actionCooldown: {},
+    focusCharacter: null,
     press: [],
     pressArchive: [],
     log: [],
@@ -98,6 +103,11 @@ export function normalizeState(saved: Partial<GameState> | null | undefined): Ga
   out.lastSignals = saved.lastSignals ?? [];
   out.trends = saved.trends ?? {};
   out.trendBase = saved.trendBase ?? {};
+  out.lastSeen = saved.lastSeen ?? {};
+  out.ledger = saved.ledger ?? [];
+  out.actionPool = saved.actionPool ?? [];
+  out.actionCooldown = saved.actionCooldown ?? {};
+  out.focusCharacter = saved.focusCharacter ?? null;
   return out;
 }
 

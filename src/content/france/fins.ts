@@ -1,4 +1,4 @@
-import type { EndingResult, GameEvent, GameState } from "../../engine/types";
+﻿import type { EndingResult, GameEvent, GameState } from "../../engine/types";
 import type { Rng } from "../../engine/rng";
 import { PRESIDENTS, REGIONS, MILIEUX, FORMATIONS, MENTORS } from "./data";
 
@@ -22,7 +22,7 @@ export type EndingCause =
   | "hiver"
   | "referendum_demission";
 
-/** Vérifie les fins « dures » en fin de trimestre. Retourne une cause ou null. */
+/** Vérifie les fins « dures » en fin de semestre. Retourne une cause ou null. */
 export function checkEndings(s: GameState, rng: Rng): EndingCause | null {
   if (s.flags["hiver_declenche"]) return "hiver";
   if (s.flags["censure_votee"] && !s.flags["censure_geree"]) {
@@ -61,7 +61,7 @@ function moyennes(s: GameState) {
   const croissance = ((s.flags["cum_croissance"] as number) ?? s.country.croissance * nT) / nT;
   const chomage = ((s.flags["cum_chomage"] as number) ?? s.country.chomage * nT) / nT;
   const detteDelta = s.country.dette - ((s.flags["dette_debut"] as number) ?? 114);
-  const annees = Math.max(1, Math.round(s.turnCount / 4));
+  const annees = Math.max(1, Math.round(s.turnCount / 2));
   return { croissance, chomage, detteDelta, annees };
 }
 
@@ -305,7 +305,7 @@ export const EVENTS_FINS: GameEvent[] = [
     kind: "intrigue",
     titre: "La révision",
     once: true,
-    weight: (s) => (s.derive >= 8 && s.mandat === 2 && s.turn >= 12 ? 4 : 0),
+    weight: (s) => (s.derive >= 8 && s.mandat === 2 && s.turn >= 6 ? 4 : 0),
     texte:
       "Vos conseillers les plus dévoués — il ne reste plus que ceux-là — présentent le projet : révision constitutionnelle par référendum, mandat porté à dix ans, renouvelable. « Pour la stabilité. » La presse qui reste approuvera. L'opposition qui reste protestera. Le peuple, lui, votera — c'est le dernier organe qui vote encore vraiment.",
     choices: [
@@ -337,7 +337,7 @@ export const EVENTS_FINS: GameEvent[] = [
     kind: "intrigue",
     titre: "Ce que vous êtes devenu",
     once: true,
-    weight: (s) => (!!s.flags["derive_haut"] && s.derive >= 5 && s.mandat === 2 && s.turn >= 10 ? 2 : 0),
+    weight: (s) => (!!s.flags["derive_haut"] && s.derive >= 5 && s.mandat === 2 && s.turn >= 5 ? 2 : 0),
     texte:
       "C'est une photo qui vous arrête — la vôtre, officielle, au mur derrière votre bureau. Vous ne vous souvenez pas d'avoir demandé ce format. Vous ne vous souvenez pas non plus de la dernière une critique, du dernier contre-pouvoir qui a dit non, de la dernière fois qu'un conseiller vous a contredit. Vingt tours de décisions défendables, chacune. Et ce mur. Il existe un chemin inverse. Il est très difficile, très long, et personne ne l'a jamais pris.",
     choices: [
@@ -369,7 +369,7 @@ export const EVENTS_FINS: GameEvent[] = [
     kind: "intrigue",
     titre: "Les élections libres",
     once: true,
-    weight: (s) => (!!s.flags["cincinnatus_engage"] && s.turn >= 16 ? 5 : 0),
+    weight: (s) => (!!s.flags["cincinnatus_engage"] && s.turn >= 8 ? 5 : 0),
     texte:
       "Les élections que vous avez organisées auront lieu dimanche. Les observateurs internationaux sont là — vous les avez invités. Les sondages, à nouveau indépendants, vous donnent perdant. Votre entourage propose « des ajustements » de dernière minute : il y a toujours, jusqu'au bout, quelqu'un pour proposer des ajustements.",
     choices: [
@@ -397,7 +397,7 @@ export const EVENTS_FINS: GameEvent[] = [
     kind: "intrigue",
     titre: "La promesse du mandat unique",
     once: true,
-    weight: (s) => (s.mandat === 1 && s.turn >= 18 && s.promises.some((p) => p.id === "mandat_unique" && p.status === "en_cours") ? 6 : 0),
+    weight: (s) => (s.mandat === 1 && s.turn >= 9 && s.promises.some((p) => p.id === "mandat_unique" && p.status === "en_cours") ? 6 : 0),
     texte:
       "Vous l'aviez dit, un soir de campagne, et le pays l'a noté : « Je ne me représenterai pas. » L'échéance approche. Votre entourage a préparé les deux discours — celui du départ, et celui qui explique pourquoi « le contexte a changé ». Les deux sont bien écrits. Un seul est vrai.",
     choices: [

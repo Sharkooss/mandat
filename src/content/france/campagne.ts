@@ -1,4 +1,4 @@
-import type { GameEvent } from "../../engine/types";
+﻿import type { GameEvent } from "../../engine/types";
 
 // ---------------------------------------------------------------------------
 // Acte III — événements de campagne (tirés certains jours entre les actions).
@@ -142,6 +142,97 @@ export const EVENTS_CAMPAGNE: GameEvent[] = [
         effects: (c) => {
           c.adj({ player: { integrite: 3 } });
           return "Vous déclinez. Il se ralliera à quelqu'un d'autre, avec le même communiqué où il suffira de changer le nom. Votre équipe regrette la prise ; vous, pas vraiment.";
+        },
+      },
+    ],
+  },
+  {
+    id: "camp_meeting_rate",
+    kind: "campagne",
+    titre: "La salle à moitié vide",
+    once: true,
+    texte:
+      "Grand meeting annoncé, six mille places réservées, deux mille personnes présentes. Les photographes ont tous cadré les rangées vides — c'est leur métier, et c'est l'image de la journée. Votre équipe s'accuse mutuellement depuis une heure.",
+    choices: [
+      {
+        id: "ironie_salle",
+        label: "En rire le premier",
+        effects: (c) => {
+          const ok = c.s.player.charisme + c.rng.int(-10, 20) > 55;
+          if (ok) {
+            if (c.s.campaign) c.s.campaign.dynamique += 2;
+            c.adj({ player: { charisme: 2 } });
+            return "« On m'avait promis un stade, j'ai eu une salle des fêtes — au moins on s'entend parler. » La vanne fait le tour des réseaux et retourne complètement la séquence. On ne peut pas humilier quelqu'un qui rit le premier.";
+          }
+          if (c.s.campaign) c.s.campaign.dynamique -= 2;
+          return "La plaisanterie tombe à plat devant deux mille personnes qui, elles, s'étaient déplacées. On vous trouve désinvolte. Il y a des jours où rien ne fonctionne.";
+        },
+      },
+      {
+        id: "changer_format",
+        label: "Abandonner les grands meetings",
+        effects: (c) => {
+          for (const id of ["periurbain", "ruraux", "pavillonnaires"]) c.seg(id, { soutien: 3, participation: 3 });
+          c.adj({ hidden: { fatigue: 6 } });
+          return "Vous annulez les trois meetings suivants au profit de petites salles et de marchés. C'est épuisant, moins spectaculaire, et bien plus efficace : dans une salle de trois cents personnes, personne ne compte les chaises vides.";
+        },
+      },
+    ],
+  },
+  {
+    id: "camp_maladie",
+    kind: "campagne",
+    titre: "La voix qui lâche",
+    once: true,
+    cond: (s) => s.hidden.fatigue > 50,
+    texte:
+      "Une extinction de voix doublée d'une fièvre à quarante-huit heures d'un débat. Le médecin de campagne est formel : trois jours de silence complet, ou vous perdez la voix pour deux semaines. Votre agenda ne prévoit pas trois jours.",
+    choices: [
+      {
+        id: "se_soigner",
+        label: "Se taire trois jours",
+        effects: (c) => {
+          c.adj({ hidden: { fatigue: -18, sante: 3 } });
+          if (c.s.campaign) c.s.campaign.dynamique -= 2;
+          return "Trois jours d'absence en pleine campagne : l'adversaire occupe seul l'espace et ne se prive pas. Vous revenez avec une voix intacte et deux points de retard. C'était le bon calcul, ce qui ne le rend pas confortable.";
+        },
+      },
+      {
+        id: "tenir_malade",
+        label: "Tenir malgré tout",
+        effects: (c) => {
+          c.adj({ hidden: { fatigue: 14, sante: -10 } });
+          c.rel("manin", { rancune: 6 });
+          return "Infiltrations, corticoïdes, et une voix rauque qui passe curieusement bien à la télévision. Vous tenez le rythme. Votre médecin note la date dans un dossier — les campagnes se gagnent parfois sur le corps qu'on hypothèque.";
+        },
+      },
+    ],
+  },
+  {
+    id: "camp_soutien_encombrant",
+    kind: "campagne",
+    titre: "Le soutien dont on se passerait",
+    once: true,
+    texte:
+      "Une personnalité sulfureuse annonce publiquement qu'elle votera pour vous, en des termes qui vous font plus de mal que dix attaques adverses. Les journalistes vous demandent si vous acceptez ce soutien. La question sera reposée chaque jour jusqu'à la réponse.",
+    choices: [
+      {
+        id: "refuser_soutien",
+        label: "Le refuser explicitement",
+        effects: (c) => {
+          c.seg("urbains", { soutien: 4 });
+          c.seg("periurbain", { soutien: -3 });
+          c.adj({ player: { integrite: 3 } });
+          return "« Je n'ai pas besoin de ces voix-là. » Phrase risquée : en campagne, on ne refuse jamais de voix. Elle vous coûte une frange de l'électorat protestataire et vous rend crédible auprès de tous les autres.";
+        },
+      },
+      {
+        id: "esquiver_soutien",
+        label: "Esquiver la question",
+        effects: (c) => {
+          if (c.s.campaign) c.s.campaign.dynamique -= 1;
+          c.adj({ player: { cynisme: 3 } });
+          return "« Chacun vote comme il l'entend. » L'esquive est techniquement irréprochable et la question revient chaque jour, en boucle, jusqu'à devenir le sujet. Vous perdez une semaine de campagne à ne pas répondre.";
         },
       },
     ],

@@ -1,4 +1,4 @@
-import type { GameEvent } from "../../engine/types";
+﻿import type { GameEvent } from "../../engine/types";
 
 // ---------------------------------------------------------------------------
 // Les crises : le temps passe au jour près, 4 à 6 décisions s'enchaînent,
@@ -474,7 +474,7 @@ export const EVENTS_CRISES: GameEvent[] = [
     kind: "standard",
     titre: "L'alerte de Ternay",
     once: true,
-    weight: (s) => (s.turnCount >= 4 ? 1.2 : 0),
+    weight: (s) => (s.turnCount >= 2 ? 1.2 : 0),
     source: "ternay",
     texte:
       "Ternay demande cinq minutes seul à seul. « Un projet d'attentat d'ampleur. Cellule partiellement identifiée, calendrier inconnu. Pour démanteler maintenant, il me faut des interpellations précoces — juridiquement fragiles. Ou nous continuons la surveillance pour remonter la filière, en acceptant le risque. » Il vous regarde. « C'est votre décision, monsieur le Président. Elle est mauvaise dans les deux cas. »",

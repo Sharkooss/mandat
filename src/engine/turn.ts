@@ -1,4 +1,4 @@
-import type { GameState, PressItem } from "./types";
+﻿import type { GameState, PressItem } from "./types";
 import type { Rng } from "./rng";
 import { clamp, agitationRapportee, croissanceAnnoncee } from "./ctx";
 import { getEvent, standardEvents } from "./registry";
@@ -72,7 +72,7 @@ function genSymptomes(s: GameState, rng: Rng): PressItem[] {
 }
 
 // ---------------------------------------------------------------------------
-// La simulation trimestrielle du pays
+// La simulation semestrielle du pays
 // ---------------------------------------------------------------------------
 
 function simulateEconomy(s: GameState, rng: Rng): void {
@@ -94,11 +94,11 @@ function simulateEconomy(s: GameState, rng: Rng): void {
 
 function driftGauges(s: GameState, rng: Rng): void {
   const h = s.hidden;
-  // La fatigue s'accumule ; l'endurance ralentit la pente.
-  h.fatigue = clamp(h.fatigue + 5 - Math.floor(s.player.endurance / 25));
-  if (h.fatigue > 75) h.sante = clamp(h.sante - 2);
-  else if (h.fatigue < 40) h.sante = clamp(h.sante + 1);
-  if (s.bio.age > 62) h.sante = clamp(h.sante - 1);
+  // Un tour couvre six mois : tout s'accumule d'autant plus vite.
+  h.fatigue = clamp(h.fatigue + 9 - Math.floor(s.player.endurance / 22));
+  if (h.fatigue > 72) h.sante = clamp(h.sante - 4);
+  else if (h.fatigue < 38) h.sante = clamp(h.sante + 1);
+  if (s.bio.age > 60) h.sante = clamp(h.sante - 2);
 
   // L'agitation réelle suit la cohésion, le chômage, l'inflation.
   const pression =
@@ -106,7 +106,7 @@ function driftGauges(s: GameState, rng: Rng): void {
     Math.max(0, s.country.chomage - 7) * 0.5 +
     Math.max(0, s.country.inflation - 2.5) * 0.8 +
     s.derive * 0.4;
-  h.agitation = clamp(h.agitation + (pression > 0 ? pression * 0.4 : -1.5) + (rng.next() - 0.5) * 3);
+  h.agitation = clamp(h.agitation + (pression > 0 ? pression * 0.7 : -2.5) + (rng.next() - 0.5) * 4);
 
   // Le risque de coup : armée mécontente + agitation + dérive + un général ambitieux.
   const verdier = s.characters["verdier"];
@@ -115,13 +115,13 @@ function driftGauges(s: GameState, rng: Rng): void {
     Math.max(0, h.agitation - 50) * 0.05 +
     s.derive * 0.3 +
     (verdier?.vivant && verdier.enPoste ? Math.max(0, verdier.ambition - 60) * 0.1 : 0);
-  h.coup = clamp(h.coup + (coupPression > 0.5 ? coupPression * 0.5 : -1));
+  h.coup = clamp(h.coup + (coupPression > 0.5 ? coupPression * 0.9 : -1.5));
 
   // Le risque d'assassinat : dérive, cohésion, purges.
   const assPression = s.derive * 0.25 + Math.max(0, 35 - s.country.cohesion) * 0.05 + h.paranoia * 0.02;
-  h.assassinat = clamp(h.assassinat + (assPression > 0.4 ? assPression * 0.4 : -0.5));
+  h.assassinat = clamp(h.assassinat + (assPression > 0.4 ? assPression * 0.7 : -0.8));
 
-  h.paranoia = clamp(h.paranoia + s.derive * 0.2 - 0.5);
+  h.paranoia = clamp(h.paranoia + s.derive * 0.35 - 0.8);
 
   // Popularité : lentement tirée par l'économie et la cohésion.
   const cible =
@@ -150,7 +150,7 @@ const UNES_HOSTILES = [
   "« La panne » — Le Matin",
 ];
 const UNES_NEUTRES = [
-  "« Trimestre d'attente à l'Élysée » — Le Quotidien National",
+  "« semestre d'attente à l'Élysée » — Le Quotidien National",
   "« L'exécutif face à ses dossiers » — L'Écho Républicain",
 ];
 const UNES_FAVORABLES = [
@@ -162,7 +162,7 @@ const UNES_SERVILES = [
   "« Le Président au travail » — page 1, photo officielle fournie par l'Élysée",
 ];
 
-/** Fige les indicateurs en début de trimestre et calcule les tendances du précédent. */
+/** Fige les indicateurs en début de semestre et calcule les tendances du précédent. */
 export function updateTrends(s: GameState): void {
   const courant: Record<string, number> = { ...s.country, ...s.power };
   if (!s.trendBase) s.trendBase = {};
@@ -211,7 +211,7 @@ export function genBriefing(s: GameState, rng: Rng): void {
 }
 
 // ---------------------------------------------------------------------------
-// Sélection des événements du trimestre
+// Sélection des événements du semestre
 // ---------------------------------------------------------------------------
 
 export function selectTurnEvents(s: GameState, rng: Rng): void {
@@ -233,15 +233,24 @@ export function selectTurnEvents(s: GameState, rng: Rng): void {
   s.delayed = still;
 
   // 2. Compléter avec des événements du pool (1 à 3 au total).
-  const cible = s.queue.length >= 2 ? s.queue.length : rng.int(1, 2) + (rng.chance(0.3) ? 1 : 0);
-  const pool = standardEvents().filter(
-    (e) => !s.queue.includes(e.id) && !(e.once && s.fired.includes(e.id)) && (!e.cond || e.cond(s))
-  );
+  //    Un événement déjà vu récemment est écarté ; un inédit est très favorisé.
+  //    C'est ce qui empêche « la même proposition de loi » de tourner en boucle.
+  const COOLDOWN = 10;
+  const cible = s.queue.length >= 2 ? s.queue.length : rng.int(1, 2) + (rng.chance(0.35) ? 1 : 0);
+  const pool = standardEvents().filter((e) => {
+    if (s.queue.includes(e.id)) return false;
+    if (e.once && s.fired.includes(e.id)) return false;
+    const vu = s.lastSeen[e.id];
+    if (vu !== undefined && s.turnCount - vu < COOLDOWN) return false;
+    return !e.cond || e.cond(s);
+  });
+
   while (s.queue.length < Math.min(cible, 3) && pool.length > 0) {
-    const weights = pool.map((e) => ({
-      item: e,
-      weight: typeof e.weight === "function" ? e.weight(s) : (e.weight ?? 1),
-    }));
+    const weights = pool.map((e) => {
+      const base = typeof e.weight === "function" ? e.weight(s) : (e.weight ?? 1);
+      const jamaisVu = s.lastSeen[e.id] === undefined;
+      return { item: e, weight: base * (jamaisVu ? 4 : 1) };
+    });
     const chosen = rng.weighted(weights);
     pool.splice(pool.indexOf(chosen), 1);
     s.queue.push(chosen.id);
@@ -250,11 +259,12 @@ export function selectTurnEvents(s: GameState, rng: Rng): void {
   for (const id of s.queue) {
     const ev = getEvent(id);
     if (ev?.once) s.fired.push(id);
+    s.lastSeen[id] = s.turnCount;
   }
 }
 
 // ---------------------------------------------------------------------------
-// Fin de trimestre
+// Fin de semestre
 // ---------------------------------------------------------------------------
 
 export function endOfTurn(s: GameState, rng: Rng): void {
@@ -269,9 +279,10 @@ export function endOfTurn(s: GameState, rng: Rng): void {
   s.pressArchive.push({ turn: s.turnCount, items: s.press });
   if (s.pressArchive.length > 8) s.pressArchive.shift();
 
-  s.trimestre++;
-  if (s.trimestre > 4) {
-    s.trimestre = 1;
+  // Un tour = un semestre : deux par an, dix par mandat.
+  s.semestre++;
+  if (s.semestre > 2) {
+    s.semestre = 1;
     s.year++;
     s.bio.age++;
   }

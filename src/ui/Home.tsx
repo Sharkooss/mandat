@@ -1,4 +1,4 @@
-import { useGame } from "../store";
+﻿import { useGame } from "../store";
 import { Tag } from "./components";
 
 const RARETE_TONE: Record<string, string> = {
@@ -39,7 +39,7 @@ export default function Home() {
       <div className="grid sm:grid-cols-3 gap-2 mb-10">
         {[
           { t: "Décider dans le brouillard", d: "Vos conseillers ont un agenda. Leurs chiffres aussi.", tone: "var(--color-secu)" },
-          { t: "Tout revient", d: "Le pot-de-vin du 4e trimestre ressort au 38e.", tone: "var(--color-monde)" },
+          { t: "Tout revient", d: "Le pot-de-vin du 4e semestre ressort au 38e.", tone: "var(--color-monde)" },
           { t: "On se souvient de vous", d: "Trente personnages, et chacun tient ses comptes.", tone: "var(--color-pouvoir)" },
         ].map((c) => (
           <div key={c.t} className="card-flat p-3" style={{ borderLeft: `3px solid ${c.tone}` }}>

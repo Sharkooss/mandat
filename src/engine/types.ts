@@ -1,4 +1,4 @@
-import type { Rng } from "./rng";
+﻿import type { Rng } from "./rng";
 
 // ---------------------------------------------------------------------------
 // Les quatre couches de jauges. La quatrième (hidden) n'est JAMAIS affichée :
@@ -178,6 +178,8 @@ export interface GameEvent {
   weight?: number | ((s: GameState) => number);
   once?: boolean;
   choices: Choice[];
+  /** Choix construits à la volée — sert aux décisions qui portent sur des personnes. */
+  dynamicChoices?: (s: GameState) => Choice[];
 }
 
 export interface DelayedTrigger {
@@ -200,6 +202,17 @@ export interface PressItem {
 export interface LogEntry {
   turn: number;
   text: string;
+}
+
+/** Une ligne du journal des impacts affiché en continu au joueur. */
+export interface LedgerEntry {
+  turn: number;
+  label: string;
+  value?: number;
+  suffix?: string;
+  /** Bon ou mauvais pour le joueur — décide de la couleur. */
+  bon: boolean;
+  kind: "stat" | "relation" | "promesse" | "signal";
 }
 
 // ---------------------------------------------------------------------------
@@ -282,10 +295,10 @@ export interface GameState {
   rngCalls: number;
   act: Act;
   phase: Phase;
-  turn: number; // trimestre du mandat en cours (1-20)
+  turn: number; // semestre du mandat en cours (1-20)
   mandat: number; // 1 ou 2
   year: number;
-  trimestre: number; // 1-4 pour l'affichage
+  semestre: number; // 1-4 pour l'affichage
   bio: Bio;
   player: PlayerStats;
   country: CountryStats;
@@ -305,9 +318,18 @@ export interface GameState {
   resolution: string | null; // texte de résolution du dernier choix
   lastDeltas: import("./deltas").Delta[];
   lastSignals: string[];
-  /** Variation de chaque indicateur sur le trimestre écoulé (flèches de tendance). */
+  /** Variation de chaque indicateur sur le semestre écoulé (flèches de tendance). */
   trends: Record<string, number>;
   trendBase: Record<string, number>;
+  /** Dernier tour où chaque événement a été joué — sert au cooldown anti-répétition. */
+  lastSeen: Record<string, number>;
+  /** Journal chiffré des impacts, alimenté à chaque décision. */
+  ledger: LedgerEntry[];
+  /** Actions proposées ce tour-ci (tirage) et actions récemment utilisées. */
+  actionPool: string[];
+  actionCooldown: Record<string, number>;
+  /** Personnage mis en avant par un clic dans un texte. */
+  focusCharacter: string | null;
   press: PressItem[];
   pressArchive: { turn: number; items: PressItem[] }[];
   log: LogEntry[];

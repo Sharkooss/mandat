@@ -5,6 +5,8 @@ import { EVENTS_INTRIGUES } from "../content/france/intrigues";
 import { EVENTS_CAMPAGNE } from "../content/france/campagne";
 import { CRISES, EVENTS_CRISES } from "../content/france/crises";
 import { EVENTS_FINS } from "../content/france/fins";
+import { EVENTS_PERSONNAGES } from "../content/france/personnages";
+import { EVENTS_CONDITIONNELS } from "../content/france/conditionnels";
 
 const ALL: GameEvent[] = [
   ...EVENTS_ASCENSION,
@@ -13,6 +15,8 @@ const ALL: GameEvent[] = [
   ...EVENTS_CAMPAGNE,
   ...EVENTS_CRISES,
   ...EVENTS_FINS,
+  ...EVENTS_PERSONNAGES,
+  ...EVENTS_CONDITIONNELS,
 ];
 
 const BY_ID = new Map<string, GameEvent>(ALL.map((e) => [e.id, e]));

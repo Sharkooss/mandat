@@ -197,9 +197,21 @@ export default function Campaign({ s }: { s: GameState }) {
             {sondage.opposant} %
           </div>
         </div>
-        <div className="flex justify-between text-[11px]" style={{ color: "var(--color-faint)" }}>
+        <div className="flex justify-between text-[11px] mb-2" style={{ color: "var(--color-faint)" }}>
           <span>Vous</span>
           <span>{opposant}</span>
+        </div>
+        <div className="flex gap-1.5 flex-wrap pt-2 border-t" style={{ borderColor: "var(--color-line-soft)" }}>
+          <Tag
+            tone={s.hidden.fatigue > 70 ? "var(--color-bad)" : s.hidden.fatigue > 45 ? "var(--color-warn)" : "var(--color-good)"}
+            aide="Un candidat épuisé rate ses interventions — et paiera sa santé pendant tout le mandat."
+          >
+            Forme : {s.hidden.fatigue > 70 ? "épuisé" : s.hidden.fatigue > 45 ? "fatigué" : "en forme"}
+          </Tag>
+          <Tag tone="var(--color-monde)" aide="Ce que vos équipes ont trouvé sur l'adversaire. Utilisable au débat.">
+            Dossier {c.dossierAdversaire}/3
+          </Tag>
+          {c.debatFait && <Tag tone="var(--color-faint)">Débat passé</Tag>}
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import type { GameEvent, GameState } from "../../engine/types";
+﻿import type { GameEvent, GameState } from "../../engine/types";
 
 // ---------------------------------------------------------------------------
 // Les intrigues à épisodes. Chaque arc est une chaîne d'événements reliés par
@@ -210,7 +210,7 @@ export const EVENTS_INTRIGUES: GameEvent[] = [
     kind: "intrigue",
     titre: "La tribune du général",
     once: true,
-    weight: (s) => (s.turnCount >= 4 && (s.hidden.agitation > 40 || s.country.securite < 50) ? 2.5 : 0.4),
+    weight: (s) => (s.turnCount >= 2 && (s.hidden.agitation > 40 || s.country.securite < 50) ? 2.5 : 0.4),
     texte:
       "Le général Verdier publie une tribune dans la presse d'Antoine Rives : « L'autorité n'est pas un gros mot ». Pas une ligne d'insubordination — et pourtant chaque phrase en a le parfum. Un chef d'état-major n'écrit pas de tribune. Celui-ci, si.",
     choices: [
@@ -363,7 +363,7 @@ export const EVENTS_INTRIGUES: GameEvent[] = [
     kind: "intrigue",
     titre: "La demande de commentaire",
     once: true,
-    weight: (s) => (s.turnCount >= 3 ? 1.8 : 0.5),
+    weight: (s) => (s.turnCount >= 2 ? 1.8 : 0.5),
     texte: (s) =>
       `Un mail de Louise Ferrand à votre service de presse, poli et précis comme un scalpel : elle prépare « une enquête au long cours » sur ${plusVieuxSecret(s).nom}. Sept questions. Délai de réponse : dix jours. La septième question montre qu'elle sait déjà l'essentiel.`,
     choices: [
@@ -482,7 +482,7 @@ export const EVENTS_INTRIGUES: GameEvent[] = [
     kind: "intrigue",
     titre: "Le malaise",
     once: true,
-    weight: (s) => (s.turnCount >= 8 && (s.hidden.fatigue > 55 || s.bio.age > 55) ? 2 : 0.3),
+    weight: (s) => (s.turnCount >= 2 && (s.hidden.fatigue > 55 || s.bio.age > 55) ? 2 : 0.3),
     texte:
       "Sommet international, huis clos. Au milieu d'une phrase, le sol tangue. Vous vous rattrapez au pupitre — deux secondes, permanence rattrapée en « geste d'emphase ». Personne n'a rien vu, sauf votre aide de camp. Le soir, le Dr Manin vous examine longuement, puis repose son stéthoscope avec une lenteur qui est déjà un diagnostic.",
     choices: [
@@ -665,7 +665,7 @@ export const EVENTS_INTRIGUES: GameEvent[] = [
     kind: "intrigue",
     titre: "Le rapport de l'Autorité de sûreté",
     once: true,
-    weight: (s) => (s.turnCount >= 2 && s.turnCount <= 7 ? 3 : 0),
+    weight: (s) => (s.turnCount >= 2 && s.turnCount <= 4 ? 3 : 0),
     texte:
       "Le rapport annuel de l'Autorité de sûreté nucléaire consacre onze pages à la centrale de Saint-Vigor, mise en service en 1978 : microfissures sur le circuit secondaire, « anomalie sérieuse sans danger immédiat ». Fermer : deux mille emplois, 4 % de la production électrique, une vallée en colère. Prolonger : « sous réserve de travaux », dit l'ASN. Les travaux coûtent le prix d'un porte-avions.",
     choices: [
@@ -882,7 +882,7 @@ export const EVENTS_INTRIGUES: GameEvent[] = [
         effects: (c) => {
           c.adj({ hidden: { agitation: 10 } });
           c.crise("crise_rp");
-          return "La phrase, prononcée au perron de l'Élysée, met le feu. Le samedi suivant s'appelle « acte VII » et plus personne n'en contrôle l'affiche. La suite ne se jouera plus en trimestres, mais en jours.";
+          return "La phrase, prononcée au perron de l'Élysée, met le feu. Le samedi suivant s'appelle « acte VII » et plus personne n'en contrôle l'affiche. La suite ne se jouera plus en semestres, mais en jours.";
         },
       },
     ],
@@ -1096,7 +1096,7 @@ export const EVENTS_INTRIGUES: GameEvent[] = [
     kind: "intrigue",
     titre: "Le dîner chez Rives",
     once: true,
-    weight: (s) => (s.turnCount >= 1 && s.turnCount <= 5 ? 2.5 : 0.5),
+    weight: (s) => (s.turnCount >= 1 && s.turnCount <= 3 ? 2.5 : 0.5),
     texte:
       "Hôtel particulier d'Antoine Rives, dîner « strictement amical ». Ses chaînes vous ont bien traité pendant la campagne — vous le savez, il sait que vous le savez. Au café, il y vient : la loi audiovisuelle prévue au printemps « mérite d'être repensée », et une fréquence TNT se libère « par ailleurs ». Il ne demande rien. Il énonce.",
     choices: [
@@ -1121,7 +1121,7 @@ export const EVENTS_INTRIGUES: GameEvent[] = [
           c.adj({ power: { presse: -6 } });
           c.flag("rives_refus");
           c.sched("rives_rachat", 3, 8, 0.6);
-          return "« La loi suivra son cours, Antoine. Le dîner était excellent. » Il vous raccompagne avec une courtoisie parfaite — chez Rives, la courtoisie est une unité de mesure de la menace. Comptez deux trimestres avant que ses éditoriaux « s'interrogent ». Vous n'attendrez pas si longtemps.";
+          return "« La loi suivra son cours, Antoine. Le dîner était excellent. » Il vous raccompagne avec une courtoisie parfaite — chez Rives, la courtoisie est une unité de mesure de la menace. Comptez deux semestres avant que ses éditoriaux « s'interrogent ». Vous n'attendrez pas si longtemps.";
         },
       },
     ],
@@ -1268,7 +1268,7 @@ export const EVENTS_INTRIGUES: GameEvent[] = [
     kind: "intrigue",
     titre: "Le client gênant",
     once: true,
-    weight: (s) => (s.turnCount >= 6 ? 1.5 : 0.3),
+    weight: (s) => (s.turnCount >= 2 ? 1.5 : 0.3),
     texte: (s) =>
       `Un hebdomadaire révèle que le cabinet de ${s.bio.conjointPrenom} compte parmi ses clients un groupe qui vient d'obtenir un marché de l'État. Rien d'illégal — tout de gênant. Le mot « conflit d'intérêts » est dans tous les titres, avec un point d'interrogation qui ne trompe personne.`,
     choices: [
@@ -1373,7 +1373,7 @@ export const EVENTS_INTRIGUES: GameEvent[] = [
     kind: "intrigue",
     titre: "La demande de grâce",
     once: true,
-    weight: (s) => (s.flags["frere_condamne"] && s.turnCount >= 5 ? 2.5 : 0),
+    weight: (s) => (s.flags["frere_condamne"] && s.turnCount >= 2 ? 2.5 : 0),
     texte:
       "Votre frère purge sa peine depuis sept ans. Sa demande de grâce présidentielle est sur votre bureau — déposée par son avocat, médiatisée avant d'arriver. Le droit vous le permet. Tout le reste vous le déconseille. Votre mère a appelé trois fois cette semaine.",
     choices: [
@@ -1452,7 +1452,7 @@ export const EVENTS_INTRIGUES: GameEvent[] = [
     kind: "intrigue",
     titre: "Les trois chapitres",
     once: true,
-    weight: (s) => (s.flags["these_arrangee"] && s.turnCount >= 4 ? 2 : 0),
+    weight: (s) => (s.flags["these_arrangee"] && s.turnCount >= 2 ? 2 : 0),
     texte:
       "Un professeur émérite, aidé d'un logiciel et d'une patience de bénédictin, a comparé votre thèse à trois ouvrages des années 80. Les concordances sont surlignées, paginées, indiscutables. Il a tout envoyé à l'université — et à Louise Ferrand. L'université « examine ». Ferrand, elle, n'examine pas : elle boucle.",
     choices: [
@@ -1481,7 +1481,7 @@ export const EVENTS_INTRIGUES: GameEvent[] = [
     kind: "intrigue",
     titre: "Le camarade qui parle",
     once: true,
-    weight: (s) => (s.flags["passe_militaire"] && s.turnCount >= 5 ? 2 : 0),
+    weight: (s) => (s.flags["passe_militaire"] && s.turnCount >= 2 ? 2 : 0),
     texte:
       "Un ancien de votre section a parlé à un documentariste : une opération extérieure, il y a vingt-cinq ans, un village, des tirs « dans la confusion », deux civils. Votre nom n'est pas dans le rapport officiel de l'époque — c'est précisément ce que le documentaire trouve étrange. Vous étiez l'officier de permanence cette nuit-là.",
     choices: [
@@ -1530,7 +1530,7 @@ export const EVENTS_INTRIGUES: GameEvent[] = [
     kind: "intrigue",
     titre: "La photo du manoir",
     once: true,
-    weight: (s) => (s.flags["heritier"] && s.turnCount >= 3 ? 1.5 : 0),
+    weight: (s) => (s.flags["heritier"] && s.turnCount >= 2 ? 1.5 : 0),
     texte:
       "En pleine séquence sur « les efforts demandés aux Français », un hebdomadaire publie huit pages sur la propriété familiale : le parc, les communs, la piscine « historique ». Les photos sont légales — prises d'un chemin public — et dévastatrices. Le mot « déconnecté » remonte dans tous les baromètres comme une marée.",
     choices: [
@@ -1562,7 +1562,7 @@ export const EVENTS_INTRIGUES: GameEvent[] = [
     kind: "intrigue",
     titre: "Les amis d'avant",
     once: true,
-    weight: (s) => (s.flags["amities_marseille"] && s.turnCount >= 4 ? 2 : 0),
+    weight: (s) => (s.flags["amities_marseille"] && s.turnCount >= 2 ? 2 : 0),
     texte:
       "Un règlement de comptes sur le Vieux-Port, un prévenu — et dans le dossier d'instruction, des photos d'archives : lui et vous, à vingt ans, épaule contre épaule à un mariage. Vous n'avez rien fait d'illégal. Vous avez juste grandi où vous avez grandi, avec qui il y avait. La presse nationale découvre le mot « quartier » avec des pincettes.",
     choices: [
@@ -1595,7 +1595,7 @@ export const EVENTS_INTRIGUES: GameEvent[] = [
     kind: "intrigue",
     titre: "La petite phrase",
     once: true,
-    weight: (s) => (s.turnCount >= 6 ? 2 : 0.3),
+    weight: (s) => (s.turnCount >= 2 ? 2 : 0.3),
     texte:
       "En clôture d'université d'été, Sacha Delval a lâché, l'air de rien : « La fidélité, en politique, n'est pas un état — c'est un contrat. Et un contrat, ça se renégocie. » La salle a ri. Les journalistes, non : ils ont titré. Il jure qu'il parlait « en général ». Personne ne parle jamais en général.",
     choices: [
@@ -1713,7 +1713,7 @@ export const EVENTS_INTRIGUES: GameEvent[] = [
     kind: "intrigue",
     titre: "Les otages",
     once: true,
-    weight: (s) => (s.turnCount >= 2 && s.turnCount <= 6 ? 2.5 : 0.4),
+    weight: (s) => (s.turnCount >= 2 && s.turnCount <= 4 ? 2.5 : 0.4),
     texte:
       "Deux humanitaires français enlevés dans la bande sahélienne, à trois cents kilomètres de la base française de Tessalit-Ouest. La katiba demande une rançon et un retrait symbolique. Verdier propose un raid : « Fenêtre favorable, renseignement solide, risque réel. » Il surestime toujours la menace — surestime-t-il aussi la fenêtre ?",
     choices: [

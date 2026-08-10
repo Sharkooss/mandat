@@ -1,4 +1,4 @@
-import type { CampaignState, GameState } from "./types";
+﻿import type { CampaignState, GameState } from "./types";
 import type { Rng } from "./rng";
 import { clamp } from "./ctx";
 
@@ -23,8 +23,8 @@ const POIDS: Record<string, number> = {
 export function intentions(s: GameState): { joueur: number; opposant: number; tiers: number } {
   const c = s.campaign!;
   const joueurRaw = scoreBrut(s);
-  const oppRaw = c.opposantScore * 0.42;
-  const tiersRaw = 16;
+  const oppRaw = c.opposantScore * 0.48;
+  const tiersRaw = 18;
   const total = joueurRaw + oppRaw + tiersRaw;
   return {
     joueur: (joueurRaw / total) * 100,
@@ -77,9 +77,9 @@ export function applyCampaignAction(s: GameState, rng: Rng, actionId: string, se
   switch (actionId) {
     case "meeting": {
       const seg = s.segments[segmentId ?? "pavillonnaires"];
-      const gain = rate(4 + Math.floor(s.player.charisme / 25));
+      const gain = rate(7 + Math.floor(s.player.charisme / 18));
       seg.soutien = clamp(seg.soutien + gain);
-      seg.participation = clamp(seg.participation + rate(5));
+      seg.participation = clamp(seg.participation + rate(8));
       if (fatigueMalus < 0.7 && rng.chance(0.4)) {
         c.dynamique = clamp(c.dynamique - 2, -10, 10);
         res = `Salle correcte, discours récité. Vous avez confondu deux villes à la tribune — la séquence tourne en boucle.`;
@@ -92,14 +92,16 @@ export function applyCampaignAction(s: GameState, rng: Rng, actionId: string, se
     case "plateau": {
       const perf = s.player.rhetorique * fatigueMalus + rng.int(-15, 15);
       if (perf > 55) {
-        for (const id of ["pavillonnaires", "urbains", "retraites"]) s.segments[id].soutien = clamp(s.segments[id].soutien + 2);
-        c.dynamique = clamp(c.dynamique + 2, -10, 10);
+        for (const id of ["pavillonnaires", "urbains", "retraites"]) s.segments[id].soutien = clamp(s.segments[id].soutien + 4);
+        c.dynamique = clamp(c.dynamique + 3, -10, 10);
         res = "Prestation solide. Une formule fait mouche, elle sera reprise partout demain.";
       } else if (perf > 35) {
-        res = "Prestation sans relief. L'éditorialiste Bec vous trouve « gestionnaire ». Ce n'était pas un compliment.";
+        for (const id of ["pavillonnaires", "urbains"]) s.segments[id].soutien = clamp(s.segments[id].soutien + 1);
+        res = "Prestation sans relief. Philippe Bec vous trouve « gestionnaire ». Ce n'était pas un compliment.";
       } else {
-        c.dynamique = clamp(c.dynamique - 3, -10, 10);
-        s.power.presse = clamp(s.power.presse - 3);
+        c.dynamique = clamp(c.dynamique - 4, -10, 10);
+        s.power.presse = clamp(s.power.presse - 4);
+        for (const id of ["pavillonnaires", "retraites"]) s.segments[id].soutien = clamp(s.segments[id].soutien - 3);
         res = "Un trou. Huit secondes de silence en direct. Le clip a déjà deux millions de vues.";
       }
       break;
@@ -111,10 +113,18 @@ export function applyCampaignAction(s: GameState, rng: Rng, actionId: string, se
       break;
     }
     case "attaque": {
-      c.opposantScore = clamp(c.opposantScore - rate(4));
-      for (const id of ["periurbain", "jeunes"]) s.segments[id].participation = clamp(s.segments[id].participation + 3);
-      s.segments["pavillonnaires"].soutien = clamp(s.segments["pavillonnaires"].soutien - 2);
-      s.segments["retraites"].soutien = clamp(s.segments["retraites"].soutien - 1);
+      // Une attaque peut se retourner : c'est l'action la plus volatile.
+      if (rng.chance(0.25)) {
+        c.dynamique = clamp(c.dynamique - 4, -10, 10);
+        s.segments["pavillonnaires"].soutien = clamp(s.segments["pavillonnaires"].soutien - 5);
+        s.power.presse = clamp(s.power.presse - 5);
+        res = "L'attaque se retourne : l'accusation était mal étayée, l'adversaire répond avec des documents. Vous passez la journée à vous expliquer au lieu de faire campagne.";
+        break;
+      }
+      c.opposantScore = clamp(c.opposantScore - rate(7));
+      for (const id of ["periurbain", "jeunes"]) s.segments[id].participation = clamp(s.segments[id].participation + 5);
+      s.segments["pavillonnaires"].soutien = clamp(s.segments["pavillonnaires"].soutien - 3);
+      s.segments["retraites"].soutien = clamp(s.segments["retraites"].soutien - 2);
       res = "La pique est cruelle et juste. Votre base jubile. Les modérés trouvent ça « petit ».";
       break;
     }
@@ -269,14 +279,14 @@ export function resolveElection(s: GameState, rng: Rng): ElectionOutcome {
   const recit: string[] = [];
   if (opposantTribun) {
     // Front républicain — sauf si la dérive l'a tué.
-    reportJoueur = 0.62 - s.derive * 0.035 - (50 - s.power.popularite) * 0.003;
+    reportJoueur = 0.55 - s.derive * 0.035 - (50 - s.power.popularite) * 0.004;
     recit.push(
       s.derive >= 5
         ? "L'entre-deux-tours est glacial. « Ni l'un ni l'autre », titrent trois quotidiens : le front républicain ne se lève pas pour vous."
         : "L'entre-deux-tours voit se former un front : on vote pour vous sans vous aimer, « pour faire barrage »."
     );
   } else {
-    reportJoueur = 0.48 + (s.power.popularite - 45) * 0.004 + c.dynamique * 0.008;
+    reportJoueur = 0.44 + (s.power.popularite - 45) * 0.005 + c.dynamique * 0.008;
     recit.push("Face à une adversaire de gouvernement, pas de barrage qui tienne : le second tour se joue au centre, voix par voix.");
   }
   reportJoueur = Math.min(0.8, Math.max(0.2, reportJoueur + (rng.next() - 0.5) * 0.1));
@@ -308,7 +318,7 @@ export function makeCampaign(kind: CampaignState["kind"], opposantId: string, op
   return {
     kind,
     week: 1,
-    totalWeeks: kind === "presidentielle" ? 12 : 8,
+    totalWeeks: kind === "presidentielle" ? 8 : 6,
     dynamique: 0,
     debatFait: false,
     opposantId,

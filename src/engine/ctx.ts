@@ -1,4 +1,4 @@
-import type { Ctx, GameState, PressTone, PromiseStatus } from "./types";
+﻿import type { Ctx, GameState, PressTone, PromiseStatus } from "./types";
 import type { Rng } from "./rng";
 
 export function clamp(v: number, min = 0, max = 100): number {
@@ -45,10 +45,13 @@ export function makeCtx(s: GameState, rng: Rng): Ctx {
         }
     },
     sched(eventId, minIn, maxIn, chance = 0.35) {
+      // Les délais sont écrits en semestres dans le contenu ; un tour couvre
+      // désormais un semestre, on les ramène donc à l'échelle du tour.
+      const ech = (n: number) => Math.max(1, Math.round(n * 0.55));
       s.delayed.push({
         eventId,
-        minTurn: s.turnCount + minIn,
-        maxTurn: s.turnCount + maxIn,
+        minTurn: s.turnCount + ech(minIn),
+        maxTurn: s.turnCount + ech(maxIn),
         chance,
       });
     },

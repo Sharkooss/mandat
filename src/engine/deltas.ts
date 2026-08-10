@@ -1,4 +1,4 @@
-import type { GameState } from "./types";
+import type { GameState, LedgerEntry } from "./types";
 
 // ---------------------------------------------------------------------------
 // Le retour visuel : ce qui a bougé après une décision, et de combien.
@@ -23,11 +23,19 @@ export interface Snapshot {
   hidden: GameState["hidden"];
   derive: number;
   segments: Record<string, number>;
+  relations: Record<string, { loyaute: number; rancune: number; enPoste: boolean }>;
+  promesses: Record<string, string>;
 }
 
 export function snapshot(s: GameState): Snapshot {
   const segments: Record<string, number> = {};
   for (const [k, v] of Object.entries(s.segments)) segments[k] = v.soutien;
+  const relations: Snapshot["relations"] = {};
+  for (const [k, v] of Object.entries(s.characters)) {
+    relations[k] = { loyaute: v.loyaute, rancune: v.rancune, enPoste: v.enPoste };
+  }
+  const promesses: Record<string, string> = {};
+  for (const p of s.promises) promesses[p.id] = p.status;
   return {
     country: { ...s.country },
     power: { ...s.power },
@@ -35,6 +43,8 @@ export function snapshot(s: GameState): Snapshot {
     hidden: { ...s.hidden },
     derive: s.derive,
     segments,
+    relations,
+    promesses,
   };
 }
 
@@ -101,6 +111,83 @@ export function computeDeltas(before: Snapshot, s: GameState, segmentNoms: Recor
 
   out.sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
   return out.slice(0, 8);
+}
+
+/**
+ * Alimente le journal permanent des impacts : stats, relations, promesses.
+ * C'est le suivi que le joueur garde sous les yeux, semestre après semestre.
+ */
+export function pushLedger(
+  before: Snapshot,
+  s: GameState,
+  deltas: Delta[],
+  signals: string[],
+  noms: { segments: Record<string, string>; personnages: Record<string, string>; promesses: Record<string, string> }
+): void {
+  const entries: LedgerEntry[] = [];
+
+  for (const d of deltas) {
+    const bon = d.inverse ? d.value < 0 : d.value > 0;
+    entries.push({ turn: s.turnCount, label: d.label, value: d.value, suffix: d.suffix, bon, kind: "stat" });
+  }
+
+  // Relations : la loyauté qui bouge, la rancune qui s'installe, les départs.
+  for (const [id, avant] of Object.entries(before.relations)) {
+    const apres = s.characters[id];
+    if (!apres) continue;
+    const nom = noms.personnages[id] ?? id;
+    const dLoy = apres.loyaute - avant.loyaute;
+    if (Math.abs(dLoy) >= 3) {
+      entries.push({ turn: s.turnCount, label: `${nom} · loyauté`, value: Math.round(dLoy), bon: dLoy > 0, kind: "relation" });
+    }
+    const dRan = apres.rancune - avant.rancune;
+    if (dRan >= 5) {
+      entries.push({ turn: s.turnCount, label: `${nom} · rancune`, value: Math.round(dRan), bon: false, kind: "relation" });
+    }
+    if (avant.enPoste && !apres.enPoste) {
+      entries.push({ turn: s.turnCount, label: `${nom} quitte ses fonctions`, bon: false, kind: "relation" });
+    }
+  }
+
+  // Promesses tenues ou trahies.
+  for (const p of s.promises) {
+    const avant = before.promesses[p.id];
+    if (avant === p.status || avant === undefined) continue;
+    if (p.status === "tenue") entries.push({ turn: s.turnCount, label: `Promesse tenue : ${noms.promesses[p.id] ?? p.id}`, bon: true, kind: "promesse" });
+    else if (p.status === "trahie") entries.push({ turn: s.turnCount, label: `Promesse trahie : ${noms.promesses[p.id] ?? p.id}`, bon: false, kind: "promesse" });
+  }
+
+  for (const sig of signals) {
+    entries.push({ turn: s.turnCount, label: sig, bon: false, kind: "signal" });
+  }
+
+  if (entries.length === 0) return;
+
+  // Un semestre = une ligne par sujet : on agrège plutôt que d'empiler
+  // dix fois « Périurbain +9 » et « Vous avez peu dormi ».
+  const fusion = [...entries, ...s.ledger];
+  const parCle = new Map<string, LedgerEntry>();
+  const ordre: string[] = [];
+  for (const e of fusion) {
+    const cle = `${e.turn}|${e.kind}|${e.label}`;
+    const existant = parCle.get(cle);
+    if (existant) {
+      if (existant.value !== undefined && e.value !== undefined) {
+        // « bon » encode déjà le sens de lecture (une dette qui baisse est bonne) :
+        // on le conserve et on le réapplique au cumul.
+        const inverse = existant.value > 0 !== existant.bon;
+        existant.value = Math.round((existant.value + e.value) * 10) / 10;
+        existant.bon = inverse ? existant.value < 0 : existant.value > 0;
+      }
+      continue;
+    }
+    parCle.set(cle, { ...e });
+    ordre.push(cle);
+  }
+  s.ledger = ordre
+    .map((c) => parCle.get(c)!)
+    .filter((e) => e.value === undefined || Math.abs(e.value) >= 0.5)
+    .slice(0, 70);
 }
 
 /** Les signaux qualitatifs : jamais de chiffre, jamais le nom de la jauge. */

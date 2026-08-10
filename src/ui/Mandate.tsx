@@ -1,19 +1,10 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import type { GameState } from "../engine/types";
 import { useGame } from "../store";
-import { ACTIONS, REFORMES } from "../content/france/actions";
-import { DeltaChips, EventView, PressList, StatsTabs, Tag, TopBar } from "./components";
-
-const ACTION_META: Record<string, { icone: string; tone: string }> = {
-  reforme: { icone: "▣", tone: "var(--color-monde)" },
-  remaniement: { icone: "♟", tone: "var(--color-pouvoir)" },
-  deplacement: { icone: "◎", tone: "var(--color-social)" },
-  renflouer: { icone: "◈", tone: "var(--color-eco)" },
-  sommet: { icone: "⚑", tone: "var(--color-monde)" },
-  seconde_source: { icone: "◐", tone: "var(--color-secu)" },
-  repos: { icone: "☾", tone: "var(--color-env)" },
-  famille: { icone: "❦", tone: "var(--color-env)" },
-};
+import { ACTIONS, REFORMES, type ActionDef } from "../content/france/actions";
+import { CAST, CAST_TAGS } from "../content/france/data";
+import { DeltaChips, EventView, Ledger, PressList, StatsTabs, Tag, TopBar } from "./components";
+import { RichText } from "./RichText";
 
 const REFORME_TONE: Record<string, string> = {
   ref_retraites: "var(--color-bad)",
@@ -38,19 +29,76 @@ function CostPips({ n }: { n: number }) {
   );
 }
 
+function ActionButton({
+  a,
+  s,
+  onPick,
+  surbrillance,
+}: {
+  a: ActionDef;
+  s: GameState;
+  onPick: (a: ActionDef) => void;
+  surbrillance?: boolean;
+}) {
+  const cout = a.id === "reforme" ? 2 : a.cout;
+  return (
+    <button
+      className="btn-choice"
+      style={{
+        "--tone": a.tone,
+        background: surbrillance ? `color-mix(in srgb, ${a.tone} 12%, var(--color-surface-2))` : undefined,
+      } as React.CSSProperties}
+      disabled={cout > s.pc}
+      onClick={() => onPick(a)}
+    >
+      <div className="flex items-start gap-2.5">
+        <span className="text-lg leading-none mt-0.5" style={{ color: a.tone }}>
+          {a.icone}
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-semibold text-[13px]">{a.nom}</span>
+            <CostPips n={cout} />
+          </div>
+          <div className="text-[11px] mt-0.5 leading-snug" style={{ color: "var(--color-faint)" }}>
+            {a.detail}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export default function Mandate({ s }: { s: GameState }) {
   const beginEvents = useGame((g) => g.beginEvents);
   const continueAfter = useGame((g) => g.continueAfter);
   const doAction = useGame((g) => g.doAction);
   const finishTurn = useGame((g) => g.finishTurn);
   const [reformesOuvertes, setReformesOuvertes] = useState(false);
+  const [personnagesPour, setPersonnagesPour] = useState<ActionDef | null>(null);
   const enCrise = s.act === "crise";
 
+  // Le menu du semestre a été tiré au début du tour par le moteur.
+  const proposees = (s.actionPool.length ? s.actionPool : ACTIONS.filter((a) => a.socle).map((a) => a.id))
+    .map((id) => ACTIONS.find((a) => a.id === id))
+    .filter((a): a is ActionDef => !!a && (!a.cond || a.cond(s)));
+  const opportunites = proposees.filter((a) => a.opportunite);
+  const ordinaires = proposees.filter((a) => !a.opportunite);
+
+  const lancer = (a: ActionDef) => {
+    if (a.needParam === "reforme") setReformesOuvertes(true);
+    else if (a.needParam === "personnage") setPersonnagesPour(a);
+    else doAction(a.id);
+  };
+
   return (
-    <div className="max-w-5xl mx-auto pt-6 px-5 pb-16">
+    <div className="max-w-[1400px] mx-auto pt-6 px-5 pb-16">
       <TopBar s={s} />
-      <div className="grid lg:grid-cols-[1fr_330px] gap-5">
-        <div>
+      <div className="grid xl:grid-cols-[240px_minmax(0,1fr)_330px] lg:grid-cols-[minmax(0,1fr)_330px] gap-4">
+        <div className="hidden xl:block">
+          <Ledger s={s} />
+        </div>
+        <div className="min-w-0">
           {enCrise && s.crisis ? (
             <div className="fade-in">
               <div
@@ -70,7 +118,7 @@ export default function Mandate({ s }: { s: GameState }) {
               <div className="flex items-center gap-2 mb-4">
                 <Tag tone="var(--color-secu)">Briefing du matin</Tag>
                 <span className="text-[11px]" style={{ color: "var(--color-faint)" }}>
-                  T{s.trimestre} {s.year}
+                  T{s.semestre} {s.year}
                 </span>
               </div>
 
@@ -106,12 +154,12 @@ export default function Mandate({ s }: { s: GameState }) {
 
               {s.resolution ? (
                 <div className="fade-in">
-                  <p
+                  <RichText
                     className="text-[15px] leading-relaxed pl-4 border-l-2"
                     style={{ borderColor: "var(--accent)", color: "color-mix(in srgb, var(--color-text) 88%, transparent)" }}
                   >
                     {s.resolution}
-                  </p>
+                  </RichText>
                   <DeltaChips deltas={s.lastDeltas} signals={s.lastSignals} />
                   <button className="btn-primary mt-5" onClick={continueAfter}>
                     Continuer
@@ -153,41 +201,64 @@ export default function Mandate({ s }: { s: GameState }) {
                     ← Revenir
                   </button>
                 </div>
+              ) : personnagesPour ? (
+                <div className="space-y-2 fade-in">
+                  <div className="label mb-2">Qui ?</div>
+                  {(personnagesPour.candidats?.(s) ?? []).map((id) => {
+                    const c = CAST.find((x) => x.id === id);
+                    if (!c) return null;
+                    const st = s.characters[id];
+                    const rel = st.loyaute >= 70 ? ["Dévoué", "var(--color-good)"] : st.loyaute >= 50 ? ["Loyal", "var(--color-env)"] : st.loyaute >= 30 ? ["Distant", "var(--color-warn)"] : ["Froid", "var(--color-bad)"];
+                    return (
+                      <button
+                        key={id}
+                        className="btn-choice"
+                        style={{ "--tone": rel[1] } as React.CSSProperties}
+                        onClick={() => {
+                          doAction(personnagesPour.id, id);
+                          setPersonnagesPour(null);
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-[13px]">{c.nom}</span>
+                          <div className="flex gap-1">
+                            <Tag tone={rel[1]}>{rel[0]}</Tag>
+                            {st.ambition >= 65 && <Tag tone="var(--color-warn)">⚑ Ambitieux</Tag>}
+                          </div>
+                        </div>
+                        <div className="text-[11px] mt-0.5" style={{ color: "var(--color-faint)" }}>
+                          {CAST_TAGS[id] ?? c.role}
+                        </div>
+                      </button>
+                    );
+                  })}
+                  <button className="text-[11px] underline" style={{ color: "var(--color-faint)" }} onClick={() => setPersonnagesPour(null)}>
+                    ← Revenir
+                  </button>
+                </div>
               ) : (
                 <>
+                  {opportunites.length > 0 && (
+                    <div className="mb-3">
+                      <div className="label mb-1.5" style={{ color: "var(--color-warn)" }}>
+                        ✦ Opportunités du moment
+                      </div>
+                      <div className="space-y-2 stagger">
+                        {opportunites.map((a) => (
+                          <ActionButton key={a.id} a={a} s={s} onPick={lancer} surbrillance />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="label mb-1.5">Ce que vous pouvez faire</div>
                   <div className="grid sm:grid-cols-2 gap-2 stagger">
-                    {ACTIONS.filter((a) => !a.cond || a.cond(s)).map((a) => {
-                      const cout = a.id === "reforme" ? 2 : a.cout;
-                      const meta = ACTION_META[a.id] ?? { icone: "◆", tone: "var(--color-monde)" };
-                      return (
-                        <button
-                          key={a.id}
-                          className="btn-choice"
-                          style={{ "--tone": meta.tone } as React.CSSProperties}
-                          disabled={cout > s.pc}
-                          onClick={() => (a.id === "reforme" ? setReformesOuvertes(true) : doAction(a.id))}
-                        >
-                          <div className="flex items-start gap-2.5">
-                            <span className="text-lg leading-none mt-0.5" style={{ color: meta.tone }}>
-                              {meta.icone}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="font-semibold text-[13px]">{a.nom}</span>
-                                <CostPips n={a.id === "reforme" ? 2 : a.cout} />
-                              </div>
-                              <div className="text-[11px] mt-0.5 leading-snug" style={{ color: "var(--color-faint)" }}>
-                                {a.detail}
-                              </div>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
+                    {ordinaires.map((a) => (
+                      <ActionButton key={a.id} a={a} s={s} onPick={lancer} />
+                    ))}
                   </div>
                   <div className="pt-4">
                     <button className="btn-primary" onClick={finishTurn}>
-                      Terminer le trimestre{s.pc > 0 ? ` · ${s.pc} pt${s.pc > 1 ? "s" : ""} perdu${s.pc > 1 ? "s" : ""}` : ""}
+                      Terminer le semestre{s.pc > 0 ? ` · ${s.pc} pt${s.pc > 1 ? "s" : ""} perdu${s.pc > 1 ? "s" : ""}` : ""}
                     </button>
                   </div>
                 </>

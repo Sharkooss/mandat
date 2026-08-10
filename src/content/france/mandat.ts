@@ -1,7 +1,7 @@
-import type { Ctx, GameEvent, GameState } from "../../engine/types";
+﻿import type { Ctx, GameEvent, GameState } from "../../engine/types";
 
 // ---------------------------------------------------------------------------
-// Acte IV — les événements du trimestre. Le liant entre les intrigues.
+// Acte IV — les événements du semestre. Le liant entre les intrigues.
 // Règle : chaque décision coûte quelque chose à quelqu'un.
 // ---------------------------------------------------------------------------
 
@@ -12,7 +12,7 @@ export const EVENTS_MANDAT: GameEvent[] = [
     kind: "standard",
     titre: "La loi de finances",
     source: "danglade",
-    weight: (s) => (s.trimestre === 4 ? 6 : 0.2),
+    weight: (s) => (s.semestre === 2 ? 6 : 0.2),
     texte:
       "Danglade présente le budget avec l'optimisme prudent d'un homme dont la carrière dépend de ses prévisions. Le déficit dérape. Bruxelles a envoyé « une lettre d'observations ». Trois options sur la table, aucune bonne.",
     choices: [
@@ -64,7 +64,7 @@ export const EVENTS_MANDAT: GameEvent[] = [
         label: "Assumer le cap",
         effects: (c) => {
           c.adj({ country: { marge: -5 }, power: { popularite: -2 } });
-          return "Vous tenez la ligne devant les caméras : « Une agence ne vote pas. » La formule est bonne. Les taux, eux, restent hauts : chaque point de dette coûte désormais un peu plus cher, chaque trimestre, en silence.";
+          return "Vous tenez la ligne devant les caméras : « Une agence ne vote pas. » La formule est bonne. Les taux, eux, restent hauts : chaque point de dette coûte désormais un peu plus cher, chaque semestre, en silence.";
         },
       },
       {
@@ -114,7 +114,7 @@ export const EVENTS_MANDAT: GameEvent[] = [
     id: "hopital_hiver",
     kind: "standard",
     titre: "L'hôpital craque",
-    weight: (s) => (s.trimestre === 1 ? 4 : 0.5) * (s.country.services < 45 ? 2 : 1),
+    weight: (s) => (s.semestre === 1 ? 4 : 0.5) * (s.country.services < 45 ? 2 : 1),
     texte:
       "Épidémie de grippe, urgences saturées, brancards dans les couloirs filmés au smartphone. Une infirmière de Valenciennes, en larmes, fait deux millions de vues. Le ministre parle de « tension saisonnière ». Personne ne le croit, pas même lui.",
     choices: [
@@ -544,7 +544,7 @@ export const EVENTS_MANDAT: GameEvent[] = [
         label: "Bouclier tarifaire",
         effects: (c) => {
           c.adj({ country: { marge: -7, inflation: -0.5 }, power: { popularite: 3 } });
-          return "L'État absorbe la hausse. Des milliards par trimestre, silencieusement. Le jour où il faudra retirer le bouclier — car il faudra — la hausse reviendra d'un coup, avec les intérêts de la colère.";
+          return "L'État absorbe la hausse. Des milliards par semestre, silencieusement. Le jour où il faudra retirer le bouclier — car il faudra — la hausse reviendra d'un coup, avec les intérêts de la colère.";
         },
       },
       {
