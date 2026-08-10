@@ -144,6 +144,8 @@ export interface Ctx {
   seg: (id: string, d: { soutien?: number; participation?: number }) => void;
   /** Monte la dérive autoritaire (ou la descend — c'est rare et cher). */
   derive: (n: number) => void;
+  /** Déplace la ligne politique : négatif vers la gauche, positif vers la droite. */
+  bord: (n: number) => void;
   /** Déclenche une crise (bascule en mode jour par jour). */
   crise: (id: string) => void;
   /** Empile un événement à jouer immédiatement après celui-ci. */
@@ -229,6 +231,8 @@ export interface Bio {
   formationId: string;
   evenementId: string;
   mentorId: string;
+  /** La conviction fondatrice — c'est elle qui place votre curseur de départ. */
+  convictionId: string;
   conjointPrenom: string;
   conjointCarriere: string;
 }
@@ -305,6 +309,12 @@ export interface GameState {
   power: PowerStats;
   hidden: HiddenStats;
   derive: number; // 0-12 : la Tentation
+  /**
+   * La ligne politique, de −10 (gauche révolutionnaire) à +10 (droite
+   * identitaire). Visible, assumée, et lourde de conséquences : chaque camp
+   * a ses fidèles, ses ennemis, et ses maux propres.
+   */
+  bord: number;
   pc: number; // capital politique du tour
   pcMax: number;
   characters: Record<string, CharacterState>;

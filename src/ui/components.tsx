@@ -2,6 +2,7 @@
 import type { GameEvent, GameState, PressItem, Rarete } from "../engine/types";
 import type { Delta } from "../engine/deltas";
 import { CAST, CAST_TAGS, SEGMENTS, PROMESSES } from "../content/france/data";
+import { bordMeta } from "../engine/bord";
 import { getEvent } from "../engine/registry";
 import { useGame } from "../store";
 import { RichText } from "./RichText";
@@ -106,6 +107,70 @@ export function Gauge({ label, value, max = 100, tone = "monde", suffix }: { lab
       <div className="gauge-track">
         <div className="gauge-fill" style={{ width: `${pct}%` }} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * L'axe gauche-droite. Contrairement aux autres jauges, il n'a pas de « bon »
+ * côté : il a deux extrémités, et chacune a ses monstres.
+ */
+export function BordAxis({ bord, compact }: { bord: number; compact?: boolean }) {
+  const meta = bordMeta(bord);
+  const pct = ((bord + 10) / 20) * 100;
+  const extreme = Math.abs(bord) >= 8;
+  return (
+    <div style={{ "--tone": meta.tone } as React.CSSProperties}>
+      <div className="flex items-baseline justify-between gap-2 mb-1.5">
+        <span className="text-[11px]" style={{ color: "var(--color-muted)" }}>
+          Ligne politique
+        </span>
+        <span className="flex items-center gap-1.5">
+          {extreme && <Tag tone="var(--color-bad)">⚑ Extrême</Tag>}
+          <span className="text-[12px] font-bold" style={{ color: meta.tone }}>
+            {meta.label}
+          </span>
+        </span>
+      </div>
+      <div
+        className="relative rounded-full"
+        style={{
+          height: 8,
+          background:
+            "linear-gradient(90deg, var(--color-bad) 0%, var(--color-pouvoir) 22%, var(--color-r-commune) 50%, var(--color-secu) 78%, var(--color-bad) 100%)",
+          opacity: 0.55,
+          border: "1px solid var(--color-line-soft)",
+        }}
+      >
+        {/* Le repère du centre : on voit tout de suite de combien on s'en écarte. */}
+        <div className="absolute top-0 bottom-0 w-px" style={{ left: "50%", background: "var(--color-text)", opacity: 0.5 }} />
+        <div
+          className="absolute rounded-full"
+          style={{
+            left: `calc(${pct}% - 7px)`,
+            top: -3,
+            width: 14,
+            height: 14,
+            background: meta.tone,
+            border: "2px solid var(--color-base)",
+            boxShadow: `0 0 10px -1px ${meta.tone}`,
+            transition: "left 0.7s cubic-bezier(0.22, 1, 0.36, 1)",
+          }}
+        />
+      </div>
+      <div className="flex justify-between text-[9px] mt-1" style={{ color: "var(--color-faint)" }}>
+        <span>Révolution</span>
+        <span className="tabular-nums" style={{ color: meta.tone }}>
+          {bord > 0 ? "+" : ""}
+          {bord}
+        </span>
+        <span>Identitaire</span>
+      </div>
+      {!compact && (
+        <div className="text-[11px] mt-1.5 italic leading-snug" style={{ color: "var(--color-faint)" }}>
+          {meta.resume}
+        </div>
+      )}
     </div>
   );
 }
@@ -564,6 +629,12 @@ export function StatsTabs({ s }: { s: GameState }) {
       {tab === "pouvoir" && (
         <div className="space-y-3">
           <div>
+            <div className="label mb-1.5">Votre ligne</div>
+            <div className="card-flat p-3">
+              <BordAxis bord={s.bord} />
+            </div>
+          </div>
+          <div>
             <div className="label mb-1.5">Assemblée nationale</div>
             <SeatBar s={s} />
           </div>
@@ -769,8 +840,13 @@ export function TopBar({ s }: { s: GameState }) {
           <div className="font-serif text-[17px] leading-tight">
             {s.bio.prenom} {s.bio.nom}
           </div>
-          <div className="text-[11px]" style={{ color: "var(--color-faint)" }}>
-            {s.act === "mandat" || s.act === "crise" ? `Mandat ${s.mandat} · T${s.semestre} ${s.year} · ${s.bio.age} ans` : `${s.bio.age} ans`}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px]" style={{ color: "var(--color-faint)" }}>
+              {s.act === "mandat" || s.act === "crise" ? `Mandat ${s.mandat} · T${s.semestre} ${s.year} · ${s.bio.age} ans` : `${s.bio.age} ans`}
+            </span>
+            <Tag tone={bordMeta(s.bord).tone} aide={bordMeta(s.bord).resume}>
+              {bordMeta(s.bord).court}
+            </Tag>
           </div>
         </div>
         {deriveTier < 2 && (

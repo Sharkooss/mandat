@@ -1,4 +1,5 @@
 import type { GameState, LedgerEntry } from "./types";
+import { bordMeta } from "./bord";
 
 // ---------------------------------------------------------------------------
 // Le retour visuel : ce qui a bougé après une décision, et de combien.
@@ -22,6 +23,7 @@ export interface Snapshot {
   player: GameState["player"];
   hidden: GameState["hidden"];
   derive: number;
+  bord: number;
   segments: Record<string, number>;
   relations: Record<string, { loyaute: number; rancune: number; enPoste: boolean }>;
   promesses: Record<string, string>;
@@ -42,6 +44,7 @@ export function snapshot(s: GameState): Snapshot {
     player: { ...s.player },
     hidden: { ...s.hidden },
     derive: s.derive,
+    bord: s.bord,
     segments,
     relations,
     promesses,
@@ -201,5 +204,11 @@ export function computeSignals(before: Snapshot, s: GameState): string[] {
   if (s.hidden.assassinat - before.hidden.assassinat >= 4) out.push("Votre service de protection a resserré le dispositif.");
   if (s.derive > before.derive) out.push("Un contre-pouvoir s'est effacé. Personne ne l'a relevé.");
   else if (s.derive < before.derive) out.push("Un contre-pouvoir a retrouvé de l'air.");
+  const dBord = s.bord - before.bord;
+  if (dBord !== 0) {
+    out.push(
+      `Votre ligne s'est déplacée vers la ${dBord < 0 ? "gauche" : "droite"} (${dBord > 0 ? "+" : ""}${dBord}) — désormais : ${bordMeta(s.bord).label.toLowerCase()}.`
+    );
+  }
   return out;
 }

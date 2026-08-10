@@ -628,6 +628,61 @@ export const ACTIONS: ActionDef[] = [
     },
   },
   {
+    id: "virage_gauche",
+    nom: "Infléchir à gauche",
+    cout: 1,
+    detail: "Un budget, un symbole, un camp. On saura enfin où vous êtes.",
+    cond: (s) => s.bord > -10,
+    cooldown: 3,
+    icone: "◀",
+    tone: "var(--color-pouvoir)",
+    effects: (c) => {
+      c.bord(-2);
+      c.adj({ country: { services: 3, marge: -4 }, hidden: { agitation: -3 } });
+      const extreme = c.s.bord <= -6;
+      return extreme
+        ? "Encore un cran. Les mesures s'enchaînent plus vite que les études d'impact, votre base exulte, et deux conseillers de Bercy demandent leur mutation le même jour. Il n'y a plus grand monde pour vous dire non, et c'est exactement ce que vous vouliez il y a deux ans."
+        : "Un collectif budgétaire, deux symboles, un discours. La lecture est immédiate dans tout le pays : vous avez choisi un camp. On vous jugera désormais sur les résultats de ce camp-là, ce qui est plus exigeant que le flou.";
+    },
+  },
+  {
+    id: "virage_droite",
+    nom: "Infléchir à droite",
+    cout: 1,
+    detail: "L'ordre, le travail, la frontière. La clarté a ses électeurs.",
+    cond: (s) => s.bord < 10,
+    cooldown: 3,
+    icone: "▶",
+    tone: "var(--color-secu)",
+    effects: (c) => {
+      c.bord(2);
+      c.adj({ country: { securite: 3, croissance: 0.2, environnement: -2 } });
+      const extreme = c.s.bord >= 6;
+      return extreme
+        ? "Encore un cran. Le vocabulaire officiel change avant les lois — c'est toujours l'ordre des choses. Trois ambassadeurs demandent des « éclaircissements », votre électorat parle de courage, et personne au Conseil des ministres ne relève plus rien."
+        : "Deux textes, un ton, une ligne. Le pays comprend enfin qui vous êtes, et une partie de ceux qui vous avaient élu par défaut commence à faire ses comptes. La clarté rapporte toujours plus qu'elle ne coûte, jusqu'au jour où c'est l'inverse.";
+    },
+  },
+  {
+    id: "purge_ideologique",
+    nom: "Épurer l'appareil d'État",
+    cout: 2,
+    detail: "Ne garder que les vôtres. Les convictions avant les compétences.",
+    cond: (s) => Math.abs(s.bord) >= 7 && s.derive >= 3,
+    opportunite: true,
+    cooldown: 5,
+    icone: "⚑",
+    tone: "var(--color-bad)",
+    effects: (c) => {
+      c.derive(2);
+      c.bord(c.s.bord < 0 ? -1 : 1);
+      c.adj({ power: { justice: -10, presse: -8 }, country: { services: -4, cohesion: -6 } });
+      c.rel("alberti", { rancune: 14 });
+      c.log("Vous avez épuré l'administration selon un critère politique.");
+      return "Quatre-vingt-dix hauts fonctionnaires écartés en trois vagues, remplacés par des fidèles dont la principale qualification est la fidélité. L'appareil vous obéit désormais au doigt et à l'œil, et il a perdu en six mois la seule chose qui le rendait utile : la capacité de vous dire que vous vous trompez.";
+    },
+  },
+  {
     id: "grande_cause",
     nom: "Lancer la grande cause du mandat",
     cout: 2,

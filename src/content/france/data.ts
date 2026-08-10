@@ -25,63 +25,129 @@ export interface CreationOption {
   id: string;
   nom: string;
   detail: string;
-  effets: string; // description lisible
+  /** Ce que l'option vous donne. */
+  effets: string;
+  /** Ce qu'elle vous coûte — toute origine se paie quelque part. */
+  cout?: string;
+  /** Inclinaison de départ sur la ligne politique (−3 gauche à +3 droite). */
+  bord?: number;
   rarete: Rarete;
   icone: string;
 }
 
 export const REGIONS: CreationOption[] = [
-  { id: "nord", nom: "Le bassin minier", detail: "Père ouvrier, mère au guichet.", effets: "+ endurance · crédibilité populaire", rarete: "commune", icone: "⛏" },
-  { id: "paris", nom: "Les beaux quartiers", detail: "Héritier. Le soupçon ne partira jamais.", effets: "+ réseau · levée de fonds", rarete: "commune", icone: "◈" },
-  { id: "banlieue", nom: "La banlieue populaire", detail: "Le quartier attend tout de vous.", effets: "+ charisme · jeunes et quartiers", rarete: "peu_commune", icone: "▲" },
-  { id: "bretagne", nom: "La Bretagne", detail: "Ancrage terrien, réseau dense.", effets: "+ stratégie · ruraux", rarete: "commune", icone: "⚓" },
-  { id: "sudouest", nom: "Le Sud-Ouest rural", detail: "La république des maires.", effets: "+ réseau local · stratégie", rarete: "commune", icone: "☘" },
-  { id: "lyon", nom: "La bourgeoisie lyonnaise", detail: "Gestion, sérieux, froideur.", effets: "+ stratégie · patronat · − charisme", rarete: "commune", icone: "⬢" },
-  { id: "marseille", nom: "Marseille et le littoral", detail: "Des amitiés qu'il valait mieux ne pas avoir.", effets: "+ rhétorique · un passé qui ressortira", rarete: "peu_commune", icone: "⚑" },
-  { id: "est", nom: "L'Est frontalier", detail: "Europe, industrie, rigueur.", effets: "+ prestige · − charisme", rarete: "commune", icone: "✦" },
-  { id: "outremer", nom: "L'outre-mer", detail: "Une première historique.", effets: "+ cohésion · la vie chère devient votre dossier", rarete: "rare", icone: "❋" },
-  { id: "exil", nom: "L'enfance à l'étranger", detail: "Fils de diplomate, six pays avant vingt ans.", effets: "+ prestige · réseau · − ancrage local", rarete: "rare", icone: "✈" },
-  { id: "montagne", nom: "La vallée alpine", detail: "Un village, une école, une route qui ferme l'hiver.", effets: "+ endurance · ruraux · environnement", rarete: "peu_commune", icone: "⛰" },
+  { id: "nord", nom: "Le bassin minier", detail: "Père ouvrier, mère au guichet.", effets: "+ endurance · périurbain", cout: "− réseau", bord: -1, rarete: "commune", icone: "⛏" },
+  { id: "paris", nom: "Les beaux quartiers", detail: "Héritier. Le soupçon ne partira jamais.", effets: "+ réseau · levée de fonds", cout: "− quartiers · étiquette de privilégié", bord: 1, rarete: "commune", icone: "◈" },
+  { id: "banlieue", nom: "La banlieue populaire", detail: "Le quartier attend tout de vous.", effets: "+ charisme · jeunes · quartiers", cout: "− ruraux · on vous ramènera toujours à ça", bord: -1, rarete: "peu_commune", icone: "▲" },
+  { id: "bretagne", nom: "La Bretagne", detail: "Ancrage terrien, réseau dense, pluie fine.", effets: "+ stratégie · ruraux", cout: "− prestige international", rarete: "commune", icone: "⚓" },
+  { id: "sudouest", nom: "Le Sud-Ouest rural", detail: "La république des maires et des cantines.", effets: "+ réseau · stratégie · ruraux", cout: "− urbains", rarete: "commune", icone: "☘" },
+  { id: "lyon", nom: "La bourgeoisie lyonnaise", detail: "Gestion, sérieux, froideur polie.", effets: "+ stratégie · patronat", cout: "− charisme", bord: 1, rarete: "commune", icone: "⬢" },
+  { id: "marseille", nom: "Marseille et le littoral", detail: "Des amitiés qu'il valait mieux ne pas avoir.", effets: "+ rhétorique · charisme", cout: "un passé qui ressortira devant un juge", rarete: "peu_commune", icone: "⚑" },
+  { id: "est", nom: "L'Est frontalier", detail: "Europe, industrie, rigueur.", effets: "+ prestige · stratégie", cout: "− charisme", rarete: "commune", icone: "✦" },
+  { id: "outremer", nom: "L'outre-mer", detail: "Une première historique.", effets: "+ cohésion · popularité · quartiers", cout: "la vie chère devient votre dossier permanent", bord: -1, rarete: "rare", icone: "❋" },
+  { id: "exil", nom: "L'enfance à l'étranger", detail: "Fille de diplomate, six pays avant vingt ans.", effets: "+ prestige · réseau", cout: "− charisme · aucun ancrage local", rarete: "rare", icone: "✈" },
+  { id: "montagne", nom: "La vallée alpine", detail: "Un village, une école, une route qui ferme l'hiver.", effets: "+ endurance · ruraux · environnement", cout: "− réseau parisien", rarete: "peu_commune", icone: "⛰" },
+  { id: "normandie", nom: "Le bocage normand", detail: "Des vaches, des plages de débarquement, un silence.", effets: "+ endurance · ruraux · prestige mémoriel", cout: "− rhétorique", rarete: "commune", icone: "❧" },
+  { id: "corse", nom: "L'île", detail: "Ici, tout le monde connaît le nom de votre grand-père.", effets: "+ réseau · loyautés inconditionnelles", cout: "− prestige · un cousin qui posera problème", rarete: "peu_commune", icone: "✵" },
+  { id: "nord_pavillon", nom: "Le lotissement périurbain", detail: "Vingt kilomètres de la ville, deux voitures, un crédit.", effets: "+ pavillonnaires · périurbain", cout: "− urbains · − prestige", rarete: "commune", icone: "⌂" },
+  { id: "ouvriere_usine", nom: "La cité industrielle du Rhône", detail: "Une usine chimique, un stade, un cimetière ouvrier.", effets: "+ endurance · syndicats · périurbain", cout: "− environnement · − csp", bord: -2, rarete: "peu_commune", icone: "⚗" },
+  { id: "vignoble", nom: "Le vignoble bordelais", detail: "Des dîners où l'on parle bas et où l'on décide haut.", effets: "+ réseau · patronat · csp", cout: "− quartiers · − jeunes", bord: 2, rarete: "peu_commune", icone: "❦" },
+  { id: "guyane", nom: "La forêt guyanaise", detail: "Le fleuve, l'orpaillage, la République à trois heures de pirogue.", effets: "+ endurance · environnement · cohésion", cout: "− réseau · un dossier sécuritaire insoluble", bord: -1, rarete: "rare", icone: "❈" },
+  { id: "harkis", nom: "Le camp de transit", detail: "Vos grands-parents y ont vécu quatre ans. On l'a oublié, pas eux.", effets: "+ endurance · légitimité mémorielle · cohésion", cout: "− réseau ; une plaie nationale à rouvrir", rarete: "legendaire", icone: "✧" },
 ];
 
 export const MILIEUX: CreationOption[] = [
-  { id: "ouvrier", nom: "Milieu ouvrier", detail: "On sait d'où vous venez. Vous aussi.", effets: "+ endurance · périurbain · − réseau", rarete: "commune", icone: "⚒" },
-  { id: "fonctionnaire", nom: "Fonction publique", detail: "Le service de l'État comme évidence.", effets: "+ intégrité · public", rarete: "commune", icone: "⚖" },
-  { id: "commercant", nom: "Petit commerce", detail: "Les comptes du soir à la table de la cuisine.", effets: "+ stratégie · indépendants", rarete: "commune", icone: "🛍" },
-  { id: "bourgeois", nom: "Grande bourgeoisie", detail: "Les codes, les dîners, les adresses.", effets: "+ réseau · cynisme · − quartiers", rarete: "peu_commune", icone: "♛" },
-  { id: "agricole", nom: "Exploitation agricole", detail: "Levé avant l'aube, toute votre enfance.", effets: "+ endurance · ruraux", rarete: "commune", icone: "🌾" },
-  { id: "enseignant", nom: "Famille d'enseignants", detail: "Des livres partout, jamais d'argent.", effets: "+ rhétorique · public · urbains", rarete: "peu_commune", icone: "✎" },
-  { id: "immigre", nom: "Parents immigrés", detail: "Deux langues, deux mondes, une seule carte d'identité.", effets: "+ endurance · quartiers · jeunes", rarete: "rare", icone: "◐" },
+  { id: "ouvrier", nom: "Milieu ouvrier", detail: "On sait d'où vous venez. Vous aussi.", effets: "+ endurance · périurbain", cout: "− réseau", bord: -1, rarete: "commune", icone: "⚒" },
+  { id: "fonctionnaire", nom: "Fonction publique", detail: "Le service de l'État comme évidence.", effets: "+ intégrité · public", cout: "− patronat", rarete: "commune", icone: "⚖" },
+  { id: "commercant", nom: "Petit commerce", detail: "Les comptes du soir à la table de la cuisine.", effets: "+ stratégie · indépendants", cout: "− public", bord: 1, rarete: "commune", icone: "🛍" },
+  { id: "bourgeois", nom: "Grande bourgeoisie", detail: "Les codes, les dîners, les adresses.", effets: "+ réseau · csp · patronat", cout: "+ cynisme · − quartiers", bord: 2, rarete: "peu_commune", icone: "♛" },
+  { id: "agricole", nom: "Exploitation agricole", detail: "Levé avant l'aube, toute votre enfance.", effets: "+ endurance · ruraux", cout: "− urbains", rarete: "commune", icone: "🌾" },
+  { id: "enseignant", nom: "Famille d'enseignants", detail: "Des livres partout, jamais d'argent.", effets: "+ rhétorique · public · urbains", cout: "− réseau économique", bord: -1, rarete: "peu_commune", icone: "✎" },
+  { id: "immigre", nom: "Parents immigrés", detail: "Deux langues, deux mondes, une seule carte d'identité.", effets: "+ endurance · quartiers · jeunes", cout: "− ruraux ; une campagne de haine vous attend", bord: -1, rarete: "rare", icone: "◐" },
+  { id: "militaire_famille", nom: "Famille de militaires", detail: "Quatre générations, la même devise au mur.", effets: "+ armée · endurance · sécurité", cout: "− urbains", bord: 1, rarete: "commune", icone: "⚔" },
+  { id: "artisan", nom: "Atelier d'artisan", detail: "Un père qui refusait de sous-traiter, par principe.", effets: "+ indépendants · endurance · intégrité", cout: "− réseau", rarete: "commune", icone: "⚙" },
+  { id: "medical", nom: "Cabinet médical de campagne", detail: "La salle d'attente comme premier théâtre politique.", effets: "+ intégrité · ruraux · services", cout: "− cynisme utile", rarete: "peu_commune", icone: "✚" },
+  { id: "monoparental", nom: "Élevé par votre mère seule", detail: "Trois emplois, aucune plainte, une exigence absolue.", effets: "+ endurance · charisme · quartiers", cout: "− réseau · − csp", bord: -1, rarete: "peu_commune", icone: "◑" },
+  { id: "patronal", nom: "Héritier d'une PME familiale", detail: "Deux cents salariés qui vous ont vu grandir.", effets: "+ patronat · stratégie · indépendants", cout: "− syndicats ; un conflit social dans votre nom", bord: 2, rarete: "peu_commune", icone: "⬡" },
+  { id: "clerical", nom: "Famille catholique pratiquante", detail: "La messe, le scoutisme, et une idée du bien commun.", effets: "+ intégrité · ruraux · pavillonnaires", cout: "− urbains · − jeunes", bord: 1, rarete: "commune", icone: "✝" },
+  { id: "communiste", nom: "Famille communiste", detail: "Le portrait au mur, la fête de l'Huma tous les ans.", effets: "+ syndicats · rhétorique · public", cout: "− patronat · − csp", bord: -2, rarete: "peu_commune", icone: "☭" },
 ];
 
 export const FORMATIONS: CreationOption[] = [
-  { id: "ena", nom: "L'école du pouvoir", detail: "La voie royale. On vous y attend.", effets: "+ stratégie · réseau · − popularité", rarete: "commune", icone: "▣" },
-  { id: "droit", nom: "Faculté de droit", detail: "Éloquence et procédure.", effets: "+ rhétorique", rarete: "commune", icone: "§" },
-  { id: "eco", nom: "Thèse en économie", detail: "Vous savez lire un budget.", effets: "+ stratégie · crédibilité budgétaire", rarete: "commune", icone: "∑" },
-  { id: "militaire", nom: "Carrière militaire", detail: "Quinze ans sous l'uniforme.", effets: "+ endurance · armée · un passé d'opérations", rarete: "peu_commune", icone: "★" },
-  { id: "autodidacte", nom: "Autodidacte", detail: "Parti de rien, appris sur le tas.", effets: "+ charisme · endurance · − réseau", rarete: "peu_commune", icone: "◇" },
-  { id: "medecin", nom: "Médecine hospitalière", detail: "Vingt ans de gardes avant la politique.", effets: "+ intégrité · crédibilité santé", rarete: "rare", icone: "✚" },
-  { id: "syndicale", nom: "L'école du syndicat", detail: "Formé dans les assemblées générales.", effets: "+ charisme · syndicats · − patronat", rarete: "peu_commune", icone: "✊" },
+  { id: "ena", nom: "L'école du pouvoir", detail: "La voie royale. On vous y attend.", effets: "+ stratégie · réseau", cout: "− popularité · − périurbain", rarete: "commune", icone: "▣" },
+  { id: "droit", nom: "Faculté de droit", detail: "Éloquence et procédure.", effets: "+ rhétorique · justice", cout: "aucune compétence budgétaire", rarete: "commune", icone: "§" },
+  { id: "eco", nom: "Thèse en économie", detail: "Vous savez lire un budget. Vraiment.", effets: "+ stratégie · crédibilité budgétaire", cout: "− charisme", rarete: "commune", icone: "∑" },
+  { id: "militaire", nom: "Carrière militaire", detail: "Quinze ans sous l'uniforme.", effets: "+ endurance · armée · sécurité", cout: "− urbains ; un passé d'opérations qui ressortira", bord: 1, rarete: "peu_commune", icone: "★" },
+  { id: "autodidacte", nom: "Autodidacte", detail: "Parti de rien, appris sur le tas.", effets: "+ charisme · endurance", cout: "− réseau · − stratégie", rarete: "peu_commune", icone: "◇" },
+  { id: "medecin", nom: "Médecine hospitalière", detail: "Vingt ans de gardes avant la politique.", effets: "+ intégrité · services · crédibilité santé", cout: "− réseau politique", rarete: "rare", icone: "✚" },
+  { id: "syndicale", nom: "L'école du syndicat", detail: "Formé dans les assemblées générales.", effets: "+ charisme · syndicats", cout: "− patronat · − csp", bord: -2, rarete: "peu_commune", icone: "✊" },
+  { id: "ingenieur", nom: "Grande école d'ingénieurs", detail: "Vous croyez aux solutions techniques. C'est votre force et votre angle mort.", effets: "+ stratégie · environnement · crédibilité industrielle", cout: "− rhétorique", rarete: "commune", icone: "◭" },
+  { id: "journalisme", nom: "École de journalisme", detail: "Vous connaissez la mécanique de l'autre côté.", effets: "+ rhétorique · presse", cout: "− intégrité perçue ; vos anciens confrères sont impitoyables", rarete: "peu_commune", icone: "✑" },
+  { id: "prof", nom: "Professeur d'histoire", detail: "Vingt ans de classes de troisième. Rien ne vous impressionne.", effets: "+ rhétorique · public · endurance", cout: "− réseau économique", bord: -1, rarete: "commune", icone: "✎" },
+  { id: "affaires", nom: "Carrière dans la finance", detail: "Huit ans à Londres, un bonus dont vous ne parlez jamais.", effets: "+ patronat · csp · stratégie", cout: "− intégrité perçue · − périurbain", bord: 2, rarete: "peu_commune", icone: "◈" },
+  { id: "humanitaire", nom: "Quinze ans dans l'humanitaire", detail: "Cinq zones de guerre, deux enlèvements évités.", effets: "+ intégrité · prestige · cohésion", cout: "− stratégie politique · une naïveté qu'on vous reprochera", bord: -1, rarete: "rare", icone: "❋" },
+  { id: "police", nom: "Commissaire de police", detail: "Vous avez vu ce que le pays produit la nuit.", effets: "+ sécurité · endurance · pavillonnaires", cout: "− quartiers · − urbains", bord: 2, rarete: "peu_commune", icone: "⌘" },
+  { id: "sportif", nom: "Sport de haut niveau", detail: "Une médaille, puis un genou, puis la politique.", effets: "+ charisme · popularité · jeunes", cout: "− stratégie ; on vous croira léger dix ans de plus", rarete: "rare", icone: "✹" },
 ];
 
 export const EVENEMENTS_FONDATEURS: CreationOption[] = [
-  { id: "usine", nom: "La fermeture de l'usine", detail: "Vous aviez seize ans. Le piquet a perdu.", effets: "cause sociale ; ce combat vous rattrapera", rarete: "commune", icone: "🏭" },
-  { id: "frere", nom: "Le frère condamné", detail: "Une affaire, un silence de famille.", effets: "+ endurance ; il demandera une grâce", rarete: "peu_commune", icone: "⛓" },
-  { id: "attentat", nom: "L'attentat auquel vous avez survécu", detail: "Vous y étiez. Vous n'en parlez jamais.", effets: "légitimité sécurité ; des cauchemars", rarete: "rare", icone: "✷" },
-  { id: "these", nom: "La thèse écrite trop vite", detail: "Trois chapitres empruntés. Pour l'instant.", effets: "carrière rapide ; une bombe à retardement", rarete: "peu_commune", icone: "📄" },
-  { id: "campagne_perdue", nom: "La première campagne perdue", detail: "Battu à 21 ans. Le score, vous l'avez retenu.", effets: "+ stratégie · cynisme", rarete: "commune", icone: "☒" },
-  { id: "greve_faim", nom: "La grève de la faim", detail: "Douze jours devant une préfecture. Vous aviez gagné.", effets: "+ charisme · endurance ; une santé entamée", rarete: "legendaire", icone: "◉" },
-  { id: "sauvetage", nom: "Le sauvetage", detail: "Vous avez sorti deux personnes d'une voiture en feu.", effets: "+ popularité durable · courage reconnu", rarete: "rare", icone: "✹" },
+  { id: "usine", nom: "La fermeture de l'usine", detail: "Vous aviez seize ans. Le piquet a perdu.", effets: "+ périurbain · public · cause sociale", cout: "ce combat vous rattrapera au pouvoir", bord: -1, rarete: "commune", icone: "🏭" },
+  { id: "frere", nom: "Le frère condamné", detail: "Une affaire, un silence de famille.", effets: "+ endurance", cout: "il demandera une grâce, un jour, en public", rarete: "peu_commune", icone: "⛓" },
+  { id: "attentat", nom: "L'attentat auquel vous avez survécu", detail: "Vous y étiez. Vous n'en parlez jamais.", effets: "+ endurance · légitimité sécurité", cout: "des cauchemars · − santé", rarete: "rare", icone: "✷" },
+  { id: "these", nom: "La thèse écrite trop vite", detail: "Trois chapitres empruntés. Pour l'instant.", effets: "+ stratégie · réseau · carrière accélérée", cout: "une bombe à retardement documentée", rarete: "peu_commune", icone: "📄" },
+  { id: "campagne_perdue", nom: "La première campagne perdue", detail: "Battu à 21 ans. Le score, vous l'avez retenu.", effets: "+ stratégie", cout: "+ cynisme", rarete: "commune", icone: "☒" },
+  { id: "greve_faim", nom: "La grève de la faim", detail: "Douze jours devant une préfecture. Vous aviez gagné.", effets: "+ charisme · endurance · syndicats", cout: "une santé entamée pour toujours", bord: -2, rarete: "legendaire", icone: "◉" },
+  { id: "sauvetage", nom: "Le sauvetage", detail: "Vous avez sorti deux personnes d'une voiture en feu.", effets: "+ popularité durable · charisme", cout: "on attendra ce courage-là chaque semaine", rarete: "rare", icone: "✹" },
+  { id: "faillite", nom: "La faillite familiale", detail: "L'huissier, le dimanche, devant les voisins.", effets: "+ endurance · indépendants · crédibilité économique", cout: "− réseau ; une rancune tenace envers les banques", rarete: "commune", icone: "⌧" },
+  { id: "deuil", nom: "L'enfant qu'on n'a pas sauvé", detail: "Aux urgences, un vendredi soir, faute de lit.", effets: "+ services · crédibilité santé · intégrité", cout: "− santé ; un sujet sur lequel vous perdez tout sang-froid", bord: -1, rarete: "rare", icone: "✜" },
+  { id: "emeute", nom: "La nuit des émeutes", detail: "Vous aviez dix-neuf ans, du mauvais côté du cordon.", effets: "+ quartiers · jeunes · endurance", cout: "− pavillonnaires ; une garde à vue archivée quelque part", bord: -2, rarete: "peu_commune", icone: "◮" },
+  { id: "opex", nom: "L'embuscade", detail: "Trois morts dans votre section. Vous commandiez.", effets: "+ armée · endurance · sécurité", cout: "− santé ; des familles qui attendent toujours la vérité", bord: 1, rarete: "rare", icone: "⚔" },
+  { id: "lanceur", nom: "Le dossier que vous avez sorti", detail: "Vous avez fait tomber un ministre. À trente ans.", effets: "+ intégrité · presse · popularité", cout: "− réseau ; la moitié de la classe politique vous hait", rarete: "rare", icone: "⚿" },
+  { id: "prison", nom: "Les six mois de détention provisoire", detail: "Un dossier vide, une instruction bâclée, une carrière brisée puis reconstruite.", effets: "+ endurance · justice · légitimité morale", cout: "− prestige ; le mot « mis en examen » vous colle à la peau", rarete: "legendaire", icone: "▤" },
+  { id: "canicule", nom: "L'été où les vieux sont morts", detail: "Vous étiez interne. On empilait les corps au sous-sol.", effets: "+ services · environnement · retraités", cout: "− santé mentale ; une obsession climatique qu'on jugera excessive", bord: -1, rarete: "peu_commune", icone: "☀" },
+  { id: "delocalisation", nom: "La délocalisation de votre boîte", detail: "Vous étiez le DRH. Vous avez signé les lettres.", effets: "+ stratégie · patronat · réalisme économique", cout: "+ cynisme · − périurbain ; quatre-vingts noms que vous connaissez", bord: 1, rarete: "peu_commune", icone: "⌇" },
+  { id: "rencontre", nom: "La poignée de main présidentielle", detail: "Vous aviez douze ans. Vous avez su ce soir-là.", effets: "+ charisme · réseau · ambition intacte", cout: "− intégrité ; vous faites de la politique pour la politique", rarete: "commune", icone: "✦" },
+  { id: "naufrage", nom: "Le naufrage devant Lampedusa", detail: "Vous étiez à bord de l'ONG. Soixante-trois corps.", effets: "+ cohésion · prestige moral · urbains", cout: "− ruraux · − pavillonnaires ; un sujet qui vous coûtera des élections", bord: -2, rarete: "rare", icone: "❋" },
+  { id: "braquage", nom: "Le commerce de vos parents braqué", detail: "Deux fois en un an. La deuxième, votre père n'a pas rouvert.", effets: "+ sécurité · indépendants · pavillonnaires", cout: "− quartiers ; une fermeté que rien ne tempère", bord: 2, rarete: "peu_commune", icone: "◪" },
 ];
 
 export const MENTORS: CreationOption[] = [
-  { id: "baron", nom: "Le baron local", detail: "Quarante ans de mandats, chaque bulletin en tête.", effets: "+ réseau · cynisme ; il attend un retour", rarete: "commune", icone: "♜" },
-  { id: "professeure", nom: "La professeure de droit", detail: "Elle croit aux institutions plus qu'aux hommes.", effets: "+ intégrité · rhétorique ; elle vous jugera", rarete: "commune", icone: "⚜" },
-  { id: "syndicaliste", nom: "Le vieux syndicaliste", detail: "Il vous a appris les salles hostiles.", effets: "+ charisme · syndicats", rarete: "commune", icone: "✊" },
-  { id: "industriel", nom: "L'industriel philanthrope", detail: "Il finance des carrières comme d'autres des musées.", effets: "+ fonds · patronat ; un carnet qui engage", rarete: "peu_commune", icone: "⬣" },
-  { id: "prefet", nom: "L'ancien préfet", detail: "Il sait comment l'État fonctionne vraiment.", effets: "+ stratégie ; il connaît vos dossiers", rarete: "commune", icone: "◫" },
-  { id: "resistante", nom: "La dernière résistante", detail: "Cent deux ans. Elle vous a dit une seule phrase.", effets: "+ intégrité · légitimité morale", rarete: "legendaire", icone: "✶" },
-  { id: "personne", nom: "Personne", detail: "Vous ne devez rien à personne. C'est aussi une faiblesse.", effets: "+ intégrité · − réseau · − stratégie", rarete: "rare", icone: "○" },
+  { id: "baron", nom: "Le baron local", detail: "Quarante ans de mandats, chaque bulletin en tête.", effets: "+ réseau · stratégie", cout: "+ cynisme ; il attend un retour, et il le dira", rarete: "commune", icone: "♜" },
+  { id: "professeure", nom: "La professeure de droit", detail: "Elle croit aux institutions plus qu'aux hommes.", effets: "+ intégrité · rhétorique · justice", cout: "elle vous jugera publiquement le jour venu", rarete: "commune", icone: "⚜" },
+  { id: "syndicaliste", nom: "Le vieux syndicaliste", detail: "Il vous a appris les salles hostiles.", effets: "+ charisme · syndicats", cout: "− patronat", bord: -1, rarete: "commune", icone: "✊" },
+  { id: "industriel", nom: "L'industriel philanthrope", detail: "Il finance des carrières comme d'autres des musées.", effets: "+ réseau · patronat · fonds de campagne", cout: "un carnet qui engage, et qui existe", bord: 1, rarete: "peu_commune", icone: "⬣" },
+  { id: "prefet", nom: "L'ancien préfet", detail: "Il sait comment l'État fonctionne vraiment.", effets: "+ stratégie · sécurité", cout: "il connaît vos dossiers mieux que vous", rarete: "commune", icone: "◫" },
+  { id: "resistante", nom: "La dernière résistante", detail: "Cent deux ans. Elle vous a dit une seule phrase.", effets: "+ intégrité · cohésion · légitimité morale", cout: "une exigence à laquelle vous ne serez jamais à la hauteur", rarete: "legendaire", icone: "✶" },
+  { id: "personne", nom: "Personne", detail: "Vous ne devez rien à personne. C'est aussi une faiblesse.", effets: "+ intégrité", cout: "− réseau · − stratégie", rarete: "rare", icone: "○" },
+  { id: "cure", nom: "Le curé de la paroisse", detail: "Il a enterré votre père et vous a trouvé votre premier emploi.", effets: "+ intégrité · ruraux · cohésion", cout: "− urbains ; une laïcité qu'on vous contestera", bord: 1, rarete: "commune", icone: "✝" },
+  { id: "patronne", nom: "La patronne de presse", detail: "Elle vous a appris à parler en petites phrases.", effets: "+ presse · rhétorique · popularité", cout: "− intégrité ; elle encaissera un jour", rarete: "peu_commune", icone: "✑" },
+  { id: "avocat", nom: "L'avocat pénaliste", detail: "Il défend des gens indéfendables, très bien, très cher.", effets: "+ rhétorique · réseau · sang-froid", cout: "− intégrité perçue ; ses clients sont une bombe médiatique", rarete: "peu_commune", icone: "§" },
+  { id: "generale", nom: "La générale à la retraite", detail: "Première femme cinq étoiles. Elle ne vous a jamais félicité.", effets: "+ armée · stratégie · endurance", cout: "− syndicats ; une brutalité de commandement", bord: 1, rarete: "rare", icone: "★" },
+  { id: "militante", nom: "La militante de quartier", detail: "Trente ans d'association, zéro mandat, mille vies changées.", effets: "+ quartiers · jeunes · charisme", cout: "− csp ; elle vous rappellera vos promesses en public", bord: -2, rarete: "peu_commune", icone: "◐" },
+  { id: "banquier", nom: "Le banquier d'affaires", detail: "Il vous appelle « mon cher ». C'est un contrat, pas une amitié.", effets: "+ csp · patronat · levée de fonds massive", cout: "+ cynisme · − intégrité ; il voudra un décret", bord: 2, rarete: "peu_commune", icone: "◈" },
+  { id: "ennemi", nom: "Votre adversaire d'alors", detail: "Il vous a battu, puis formé. Personne n'a jamais compris pourquoi.", effets: "+ stratégie · rhétorique · lucidité rare", cout: "− parti ; les vôtres ne vous l'ont jamais pardonné", rarete: "legendaire", icone: "⚯" },
+];
+
+// ---------------------------------------------------------------------------
+// La conviction fondatrice — l'écran qui place votre curseur sur la ligne.
+// C'est le seul choix de l'Acte I qui décide d'emblée de qui vous êtes.
+// ---------------------------------------------------------------------------
+
+export const CONVICTIONS: CreationOption[] = [
+  { id: "conv_revolution", nom: "« Le capitalisme est le problème »", detail: "Vous n'êtes pas venu aménager le système. Vous êtes venu le remplacer.", effets: "+ syndicats · public · jeunes · rhétorique", cout: "− patronat · − csp · les marchés vous détestent avant votre élection", bord: -4, rarete: "rare", icone: "☭" },
+  { id: "conv_sociale", nom: "« L'égalité d'abord »", detail: "Redistribuer, protéger, financer les services.", effets: "+ public · quartiers · syndicats", cout: "− patronat · − marge budgétaire", bord: -2, rarete: "commune", icone: "⚖" },
+  { id: "conv_ecolo", nom: "« Il ne restera rien à gouverner »", detail: "Le climat n'est pas un dossier parmi d'autres. C'est le seul.", effets: "+ environnement · urbains · jeunes", cout: "− périurbain · − patronat · − croissance", bord: -2, rarete: "peu_commune", icone: "❋" },
+  { id: "conv_republicaine", nom: "« La République, rien d'autre »", detail: "Laïcité, école, mérite. Ni la gauche molle ni la droite dure.", effets: "+ public · cohésion · intégrité", cout: "− quartiers ; personne ne se reconnaît vraiment en vous", bord: 0, rarete: "commune", icone: "⚜" },
+  { id: "conv_pragmatique", nom: "« Ce qui marche »", detail: "Ni de gauche ni de droite : les faits, les tableaux, les résultats.", effets: "+ stratégie · patronat · presse", cout: "− charisme ; aucune base militante ne mourra pour vous", bord: 0, rarete: "commune", icone: "◫" },
+  { id: "conv_europe", nom: "« La France seule ne pèse rien »", detail: "L'échelle utile est le continent. Le reste est de la nostalgie.", effets: "+ prestige · urbains · csp", cout: "− périurbain · − ruraux ; « Bruxelles » sera votre insulte quotidienne", bord: 1, rarete: "peu_commune", icone: "✦" },
+  { id: "conv_liberale", nom: "« Libérer le travail »", detail: "Moins d'État, moins de charges, plus d'initiative.", effets: "+ patronat · csp · indépendants · croissance", cout: "− syndicats · − services publics", bord: 3, rarete: "commune", icone: "◈" },
+  { id: "conv_ordre", nom: "« L'autorité avant tout »", detail: "Un pays qui ne fait plus peur à ses délinquants a perdu.", effets: "+ sécurité · armée · pavillonnaires · retraités", cout: "− quartiers · − urbains · − libertés", bord: 3, rarete: "commune", icone: "⌘" },
+  { id: "conv_nation", nom: "« La nation d'abord »", detail: "Frontières, souveraineté, préférence nationale assumée.", effets: "+ périurbain · ruraux · sécurité · popularité initiale", cout: "− prestige · − cohésion · − quartiers ; l'Europe vous attaquera", bord: 5, rarete: "rare", icone: "⚑" },
+  { id: "conv_souverainiste", nom: "« Ni Bruxelles ni Washington »", detail: "La souveraineté ou rien — et elle n'est ni de gauche ni de droite.", effets: "+ périurbain · armée · indépendance stratégique", cout: "− prestige · − csp ; vous n'aurez d'alliés nulle part", bord: 2, rarete: "peu_commune", icone: "⬢" },
+  { id: "conv_conservatrice", nom: "« Ce qui tient un pays »", detail: "La famille, la transmission, la mesure. On ne réforme pas une civilisation.", effets: "+ retraités · ruraux · pavillonnaires · cohésion", cout: "− jeunes · − urbains · − environnement", bord: 2, rarete: "commune", icone: "✝" },
+  { id: "conv_populiste", nom: "« Le peuple contre les élites »", detail: "Peu importe le camp : ceux d'en bas contre ceux d'en haut.", effets: "+ charisme · périurbain · quartiers · participation", cout: "− presse · − csp ; on vous accusera de tout et de son contraire", bord: -1, rarete: "rare", icone: "◉" },
+  { id: "conv_aucune", nom: "« Je verrai bien »", detail: "Vous êtes entré en politique sans idée fixe. C'est plus fréquent qu'on ne croit.", effets: "+ liberté totale de manœuvre · aucune ligne à trahir", cout: "− charisme · − parti ; on vous croira creux, et on n'aura pas tort", bord: 0, rarete: "peu_commune", icone: "○" },
+  { id: "conv_technocrate", nom: "« Le pays est mal géré, pas mal orienté »", detail: "Pas un problème d'idées : un problème d'exécution.", effets: "+ stratégie · marge budgétaire · patronat", cout: "− charisme · − cohésion ; le pays réel vous échappera", bord: 1, rarete: "commune", icone: "∑" },
 ];
 
 /** Poids de tirage : les options rares sortent moins souvent. */

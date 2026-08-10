@@ -26,7 +26,7 @@ export default function Home() {
       <div className="flex justify-center gap-2 mb-8 flex-wrap">
         <Tag tone="var(--color-eco)">France</Tag>
         <Tag tone="var(--color-social)">45 à 90 minutes</Tag>
-        <Tag tone="var(--color-monde)">14 fins</Tag>
+        <Tag tone="var(--color-monde)">16 fins</Tag>
         <Tag tone="var(--color-perso)">Gratuit, sans compte</Tag>
       </div>
 

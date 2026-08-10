@@ -1,5 +1,6 @@
 ﻿import type { Ctx, GameState, PressTone, PromiseStatus } from "./types";
 import type { Rng } from "./rng";
+import { SEGMENTS_DROITE, SEGMENTS_GAUCHE } from "./bord";
 
 export function clamp(v: number, min = 0, max = 100): number {
   return Math.min(max, Math.max(min, v));
@@ -92,6 +93,23 @@ export function makeCtx(s: GameState, rng: Rng): Ctx {
         ctx.seg("urbains", { soutien: -2 * n });
         ctx.adj({ hidden: { paranoia: n } });
       }
+    },
+    bord(n) {
+      const avant = s.bord;
+      s.bord = clamp(s.bord + n, -10, 10);
+      const d = s.bord - avant;
+      if (d === 0) return;
+      // Se déplacer, c'est choisir son camp : on gagne les siens et on perd
+      // les autres, à peu près dans les mêmes proportions.
+      const gagnes = d < 0 ? SEGMENTS_GAUCHE : SEGMENTS_DROITE;
+      const perdus = d < 0 ? SEGMENTS_DROITE : SEGMENTS_GAUCHE;
+      const ampleur = Math.abs(d);
+      for (const id of gagnes) ctx.seg(id, { soutien: ampleur * 1.6, participation: ampleur });
+      for (const id of perdus) ctx.seg(id, { soutien: -ampleur * 1.3 });
+      // Les corps intermédiaires n'attendent pas les sondages pour se ranger.
+      ctx.adj({ power: { syndicats: -d * 2, patronat: d * 2 } });
+      if (Math.abs(s.bord) >= 8) s.flags["bord_extreme"] = true;
+      if (Math.abs(s.bord) >= 5) s.flags["bord_radical"] = true;
     },
     crise(id) {
       s.flags["crise_a_lancer"] = id;

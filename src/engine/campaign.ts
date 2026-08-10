@@ -277,16 +277,21 @@ export function resolveElection(s: GameState, rng: Rng): ElectionOutcome {
   const opposantTribun = c.opposantId === "sallenave" || c.opposantId === "figure_rp";
   let reportJoueur: number;
   const recit: string[] = [];
+  // Une ligne marquée assèche le réservoir du second tour : on ne fait pas
+  // barrage avec les voix d'un camp qu'on a passé cinq ans à désigner.
+  const malusBord = Math.max(0, Math.abs(s.bord) - 3) * 0.028;
   if (opposantTribun) {
-    // Front républicain — sauf si la dérive l'a tué.
-    reportJoueur = 0.55 - s.derive * 0.035 - (50 - s.power.popularite) * 0.004;
+    // Front républicain — sauf si la dérive ou l'extrémisme l'ont tué.
+    reportJoueur = 0.55 - s.derive * 0.035 - malusBord - (50 - s.power.popularite) * 0.004;
     recit.push(
-      s.derive >= 5
-        ? "L'entre-deux-tours est glacial. « Ni l'un ni l'autre », titrent trois quotidiens : le front républicain ne se lève pas pour vous."
-        : "L'entre-deux-tours voit se former un front : on vote pour vous sans vous aimer, « pour faire barrage »."
+      Math.abs(s.bord) >= 7
+        ? "Il n'y a pas d'entre-deux-tours : deux candidats de rupture, aucun front, et un électorat modéré qui cherche publiquement où mettre son bulletin."
+        : s.derive >= 5
+          ? "L'entre-deux-tours est glacial. « Ni l'un ni l'autre », titrent trois quotidiens : le front républicain ne se lève pas pour vous."
+          : "L'entre-deux-tours voit se former un front : on vote pour vous sans vous aimer, « pour faire barrage »."
     );
   } else {
-    reportJoueur = 0.44 + (s.power.popularite - 45) * 0.005 + c.dynamique * 0.008;
+    reportJoueur = 0.44 + (s.power.popularite - 45) * 0.005 + c.dynamique * 0.008 - malusBord;
     recit.push("Face à une adversaire de gouvernement, pas de barrage qui tienne : le second tour se joue au centre, voix par voix.");
   }
   reportJoueur = Math.min(0.8, Math.max(0.2, reportJoueur + (rng.next() - 0.5) * 0.1));

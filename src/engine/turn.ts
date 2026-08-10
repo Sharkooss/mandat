@@ -2,6 +2,7 @@
 import type { Rng } from "./rng";
 import { clamp, agitationRapportee, croissanceAnnoncee } from "./ctx";
 import { getEvent, standardEvents } from "./registry";
+import { bordMeta } from "./bord";
 
 // ---------------------------------------------------------------------------
 // Symptômes : la seule fenêtre du joueur sur les jauges cachées.
@@ -123,6 +124,33 @@ function driftGauges(s: GameState, rng: Rng): void {
 
   h.paranoia = clamp(h.paranoia + s.derive * 0.35 - 0.8);
 
+  // La ligne politique a un coût structurel. Une ligne marquée polarise le
+  // pays ; une ligne extrême lui inflige les maux propres à son camp.
+  const ecart = Math.max(0, Math.abs(s.bord) - 3);
+  if (ecart > 0) {
+    s.country.cohesion = clamp(s.country.cohesion - ecart * 0.45);
+    h.agitation = clamp(h.agitation + ecart * 0.5);
+  }
+  if (s.bord <= -5) {
+    // Gauche radicale : les capitaux partent, la violence politique monte.
+    const cran = -s.bord - 4;
+    s.country.dette = clamp(s.country.dette + cran * 0.5, 20, 250);
+    s.country.croissance = clamp(s.country.croissance - cran * 0.09, -8, 12);
+    s.power.patronat = clamp(s.power.patronat - cran * 0.8);
+    s.country.prestige = clamp(s.country.prestige - cran * 0.3);
+    h.assassinat = clamp(h.assassinat + cran * 0.9);
+    h.coup = clamp(h.coup + cran * 0.4);
+  }
+  if (s.bord >= 5) {
+    // Droite nationale : le pays se ferme. L'environnement et le rang paient.
+    const cran = s.bord - 4;
+    s.country.environnement = clamp(s.country.environnement - cran * 0.8);
+    s.country.prestige = clamp(s.country.prestige - cran * 0.7);
+    s.power.syndicats = clamp(s.power.syndicats - cran * 0.9);
+    s.country.securite = clamp(s.country.securite + cran * 0.3);
+    h.agitation = clamp(h.agitation + cran * 0.5);
+  }
+
   // Popularité : lentement tirée par l'économie et la cohésion.
   const cible =
     38 +
@@ -206,6 +234,19 @@ export function genBriefing(s: GameState, rng: Rng): void {
     text: `Note de l'Intérieur : climat social « ${agitationRapportee(s) < 35 ? "maîtrisé" : agitationRapportee(s) < 55 ? "sous surveillance" : "préoccupant"} » (indice Mazeau : ${agitationRapportee(s)}).`,
     tone: "neutre",
   });
+
+  // La ligne, quand elle est marquée, devient un sujet en soi.
+  if (Math.abs(s.bord) >= 5) {
+    const m = bordMeta(s.bord);
+    s.press.push({
+      kind: "echo",
+      text:
+        s.bord <= -5
+          ? `Revue de presse étrangère : la France « ${m.label.toLowerCase()} » inquiète les places financières. Trois journaux économiques emploient le mot « expérience ». Ce n'est jamais un compliment.`
+          : `Revue de presse étrangère : la France « ${m.label.toLowerCase()} » est citée en exemple par quatre partis européens que le Quai d'Orsay préférerait ne pas commenter.`,
+      tone: "neutre",
+    });
+  }
 
   for (const item of genSymptomes(s, rng)) s.press.push(item);
 }

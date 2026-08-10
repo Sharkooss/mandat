@@ -7,7 +7,7 @@ import { makeCtx } from "./engine/ctx";
 import { getEvent, getCrise } from "./engine/registry";
 import { genBriefing, selectTurnEvents, endOfTurn, updateTrends } from "./engine/turn";
 import { applyCampaignAction, makeCampaign, resolveElection, runDebate } from "./engine/campaign";
-import { ASCENSION_SEQUENCE } from "./content/france/ascension";
+import { buildAscension } from "./content/france/ascension";
 import { EVENTS_CAMPAGNE } from "./content/france/campagne";
 import { ACTIONS, REFORMES } from "./content/france/actions";
 import { buildEnding, checkEndings, type EndingCause } from "./content/france/fins";
@@ -21,6 +21,7 @@ import {
   FORMATIONS,
   EVENEMENTS_FONDATEURS,
   MENTORS,
+  CONVICTIONS,
   SEGMENTS,
   CAST,
   PROMESSES,
@@ -230,7 +231,9 @@ export const useGame = create<Store>()(
         if (!bio.conjointPrenom) bio.conjointPrenom = rng.pick(bio.genre === "f" ? PRENOMS_M : PRENOMS_F);
         applyBio(s, bio);
         s.act = "ascension";
-        s.queue = [...ASCENSION_SEQUENCE];
+        // Sept étapes, chacune tirée dans son propre vivier : la carrière
+        // ne recommence jamais deux fois par le même gymnase municipal.
+        s.queue = buildAscension(rng, s);
         s.currentEvent = s.queue.shift() ?? null;
         s.rngCalls = rng.state();
         set({ game: s });
@@ -250,6 +253,7 @@ export const useGame = create<Store>()(
           formationId: rng.pick(FORMATIONS).id,
           evenementId: rng.pick(EVENEMENTS_FONDATEURS).id,
           mentorId: rng.pick(MENTORS).id,
+          convictionId: rng.pick(CONVICTIONS).id,
           conjointPrenom: "",
           conjointCarriere: rng.pick(["avocature", "médecine", "entreprise", "enseignement"]),
         };
@@ -486,7 +490,7 @@ export const useGame = create<Store>()(
     },
     {
       name: "mandat-save",
-      version: 3,
+      version: 4,
       // Une partie commencée sur une version antérieure doit rester jouable :
       // on recomplète les champs apparus depuis plutôt que de la jeter.
       migrate: (persisted) => {

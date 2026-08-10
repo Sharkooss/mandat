@@ -1,18 +1,37 @@
 import { useMemo, useState } from "react";
 import type { Bio, Rarete } from "../engine/types";
 import { useGame } from "../store";
-import { REGIONS, MILIEUX, FORMATIONS, EVENEMENTS_FONDATEURS, MENTORS, POIDS_RARETE, type CreationOption } from "../content/france/data";
+import {
+  REGIONS,
+  MILIEUX,
+  FORMATIONS,
+  EVENEMENTS_FONDATEURS,
+  MENTORS,
+  CONVICTIONS,
+  POIDS_RARETE,
+  type CreationOption,
+} from "../content/france/data";
 import { makeRng } from "../engine/rng";
-import { RareteBadge, Tag } from "./components";
+import { bordMeta } from "../engine/bord";
+import { BordAxis, RareteBadge, Tag } from "./components";
 
 const STEPS = [
   { key: "identite", titre: "Qui êtes-vous ?", sous: "", options: [] as CreationOption[] },
-  { key: "regionId", titre: "D'où venez-vous ?", sous: "Trois origines vous sont proposées.", options: REGIONS },
+  { key: "regionId", titre: "D'où venez-vous ?", sous: "Quatre origines vous sont proposées. Chacune donne et chacune coûte.", options: REGIONS },
   { key: "milieuId", titre: "Quel monde vous a élevé ?", sous: "", options: MILIEUX },
   { key: "formationId", titre: "Qu'avez-vous appris ?", sous: "", options: FORMATIONS },
   { key: "evenementId", titre: "Qu'est-ce qui vous a forgé ?", sous: "", options: EVENEMENTS_FONDATEURS },
   { key: "mentorId", titre: "Qui vous a ouvert les portes ?", sous: "", options: MENTORS },
+  {
+    key: "convictionId",
+    titre: "Pourquoi faites-vous de la politique ?",
+    sous: "Le seul choix qui décide d'emblée de votre ligne — et de la moitié des événements que vous verrez.",
+    options: CONVICTIONS,
+  },
 ] as const;
+
+/** Combien d'options proposer à chaque écran. */
+const PROPOSITIONS = 4;
 
 const RARETE_TONE: Record<Rarete, string> = {
   commune: "var(--color-r-commune)",
@@ -21,12 +40,12 @@ const RARETE_TONE: Record<Rarete, string> = {
   legendaire: "var(--color-r-legend)",
 };
 
-/** Tire 3 options sans remise, pondérées par la rareté. */
+/** Tire N options sans remise, pondérées par la rareté. */
 function tirage(options: CreationOption[], seed: number): CreationOption[] {
   const rng = makeRng(seed);
   const pool = [...options];
   const out: CreationOption[] = [];
-  for (let i = 0; i < 3 && pool.length > 0; i++) {
+  for (let i = 0; i < PROPOSITIONS && pool.length > 0; i++) {
     const choisi = rng.weighted(pool.map((o) => ({ item: o, weight: POIDS_RARETE[o.rarete] })));
     out.push(choisi);
     pool.splice(pool.indexOf(choisi), 1);
@@ -34,12 +53,28 @@ function tirage(options: CreationOption[], seed: number): CreationOption[] {
   return out;
 }
 
+/** Le signe est porté par la pastille, pas par le texte : on évite « ＋ + réseau ». */
+function sansSigne(texte: string): string {
+  return texte.replace(/^[+−-]\s*/, "");
+}
+
+/** L'étiquette de ligne politique portée par une option. */
+function BordTag({ bord }: { bord: number }) {
+  const meta = bordMeta(bord * 3);
+  return (
+    <Tag tone={meta.tone} aide="Cette origine incline votre ligne politique de départ. Les inclinaisons de vos six choix s'additionnent.">
+      {bord < 0 ? "◀" : "▶"} {meta.court} {bord > 0 ? "+" : ""}
+      {bord}
+    </Tag>
+  );
+}
+
 export default function Creation() {
   const submitBio = useGame((g) => g.submitBio);
   const randomBio = useGame((g) => g.randomBio);
   const [step, setStep] = useState(0);
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1e9));
-  const [relances, setRelances] = useState(2);
+  const [relances, setRelances] = useState(3);
   const [bio, setBio] = useState<Bio>({
     prenom: "",
     nom: "",
@@ -50,6 +85,7 @@ export default function Creation() {
     formationId: "",
     evenementId: "",
     mentorId: "",
+    convictionId: "",
     conjointPrenom: "",
     conjointCarriere: "avocature",
   });
@@ -59,6 +95,15 @@ export default function Creation() {
     () => (current.options.length ? tirage([...current.options], seed + step * 7919) : []),
     [current.options, seed, step]
   );
+
+  // La ligne se construit choix après choix : on la montre en train de bouger.
+  const bordCourant = useMemo(() => {
+    const pools = [REGIONS, MILIEUX, FORMATIONS, EVENEMENTS_FONDATEURS, MENTORS, CONVICTIONS];
+    const ids = [bio.regionId, bio.milieuId, bio.formationId, bio.evenementId, bio.mentorId, bio.convictionId];
+    let total = 0;
+    for (let i = 0; i < pools.length; i++) total += pools[i].find((o) => o.id === ids[i])?.bord ?? 0;
+    return Math.max(-10, Math.min(10, total));
+  }, [bio]);
 
   const pick = (key: string, id: string) => {
     const next = { ...bio, [key]: id };
@@ -201,14 +246,22 @@ export default function Creation() {
                     <div className="text-[12px] mt-0.5" style={{ color: "var(--color-faint)" }}>
                       {opt.detail}
                     </div>
-                    <div className="mt-1.5">
-                      <Tag tone="var(--color-eco)">{opt.effets}</Tag>
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      <Tag tone="var(--color-good)">＋ {sansSigne(opt.effets)}</Tag>
+                      {opt.cout && <Tag tone="var(--color-bad)">− {sansSigne(opt.cout)}</Tag>}
+                      {!!opt.bord && <BordTag bord={opt.bord} />}
                     </div>
                   </div>
                 </div>
               </button>
             ))}
           </div>
+
+          {step > 1 && (
+            <div className="card-flat p-3 mt-4">
+              <BordAxis bord={bordCourant} compact />
+            </div>
+          )}
 
           <div className="flex items-center gap-3 mt-4">
             <button className="btn-ghost" disabled={relances <= 0} onClick={relancer}>

@@ -1,6 +1,7 @@
 ﻿import type { EndingResult, GameEvent, GameState } from "../../engine/types";
 import type { Rng } from "../../engine/rng";
-import { PRESIDENTS, REGIONS, MILIEUX, FORMATIONS, MENTORS } from "./data";
+import { PRESIDENTS, REGIONS } from "./data";
+import { bordMeta } from "../../engine/bord";
 
 // ---------------------------------------------------------------------------
 // Les causes de sortie détectées par le moteur
@@ -20,11 +21,17 @@ export type EndingCause =
   | "consulat_perdu"
   | "cincinnatus"
   | "hiver"
+  | "republique_populaire"
+  | "etat_national"
   | "referendum_demission";
 
 /** Vérifie les fins « dures » en fin de semestre. Retourne une cause ou null. */
 export function checkEndings(s: GameState, rng: Rng): EndingCause | null {
   if (s.flags["hiver_declenche"]) return "hiver";
+  // Les deux bascules autoritaires closent la partie : une fois le régime
+  // installé, il n'y a plus de semestre à jouer, seulement une durée à subir.
+  if (s.flags["republique_populaire"]) return "republique_populaire";
+  if (s.flags["etat_national"]) return "etat_national";
   if (s.flags["censure_votee"] && !s.flags["censure_geree"]) {
     // Une censure ne tue pas toujours : elle tue quand tout le reste vacille.
     s.flags["censure_geree"] = true;
@@ -89,7 +96,8 @@ function verdict(s: GameState, cause: EndingCause): EndingResult["verdict"] {
   const conj = s.characters["conjoint"];
   const axesNationaux = [
     { nom: "Prospérité", note: note(10 + m.croissance * 3 - Math.max(0, s.country.chomage - 7) * 1.2 - Math.max(0, m.detteDelta) * 0.15) },
-    { nom: "Libertés", note: note(19 - s.derive * 1.7 + (s.power.presse - 50) * 0.04) },
+    // Une ligne extrême rogne les libertés même sans dérive autoritaire formelle.
+    { nom: "Libertés", note: note(19 - s.derive * 1.7 + (s.power.presse - 50) * 0.04 - Math.max(0, Math.abs(s.bord) - 5) * 1.4) },
     { nom: "Sécurité", note: note(s.country.securite / 5) },
     { nom: "Cohésion", note: note(s.country.cohesion / 5) },
     { nom: "Environnement", note: note(s.country.environnement / 5) },
@@ -103,6 +111,9 @@ function verdict(s: GameState, cause: EndingCause): EndingResult["verdict"] {
   const totalNat = axesNationaux.reduce((a, b) => a + b.note, 0) / 6;
   let jugement: string;
   if (cause === "hiver") jugement = "Il n'y a plus d'historiens pour juger.";
+  else if (cause === "republique_populaire" || cause === "etat_national")
+    jugement =
+      "Les manuels scolaires du pays consacrent onze pages élogieuses à cette période. Ils ont été réécrits sous votre autorité. Les manuels des pays voisins, eux, consacrent au même mandat un encadré de quatre lignes et un seul adjectif.";
   else if (cause === "cincinnatus") jugement = "Les historiens hésitent encore entre « miracle civique » et « accident heureux ». Ils s'accordent sur un point : personne n'a fait ça avant.";
   else if (s.derive >= 8) jugement = "Les historiens de votre pays écrivent sous surveillance. Ceux de l'étranger ont déjà rendu leur verdict, et il est sans appel.";
   else if (totalNat >= 13) jugement = "Le recul aidant, les historiens parlent d'un mandat majeur — de ceux qui laissent le pays différent de celui qu'ils ont trouvé.";
@@ -111,22 +122,112 @@ function verdict(s: GameState, cause: EndingCause): EndingResult["verdict"] {
   return { axesNationaux, axesPersonnels, jugement };
 }
 
+/**
+ * Les compléments de la phrase d'ouverture de la notice. Le nom d'une option
+ * ne se glisse pas tel quel dans une phrase française : « issu d'un famille
+ * communiste » ou « né dans la Bretagne » ne passent pas. On écrit donc le
+ * complément à la main partout où la règle générique se casse.
+ */
+const NOTICE_ORIGINE: Record<string, string> = {
+  bretagne: "en Bretagne",
+  marseille: "à Marseille",
+  outremer: "en outre-mer",
+  exil: "à l'étranger, au gré des affectations paternelles",
+  corse: "sur l'île",
+};
+
+const NOTICE_MILIEU: Record<string, string> = {
+  ouvrier: "d'un milieu ouvrier",
+  fonctionnaire: "d'une famille de fonctionnaires",
+  commercant: "d'une famille de petits commerçants",
+  bourgeois: "de la grande bourgeoisie",
+  agricole: "d'une exploitation agricole",
+  enseignant: "d'une famille d'enseignants",
+  immigre: "de parents immigrés",
+  militaire_famille: "d'une famille de militaires",
+  artisan: "d'un atelier d'artisan",
+  medical: "d'un cabinet médical de campagne",
+  monoparental: "d'une famille élevée par une mère seule",
+  patronal: "d'une PME familiale",
+  clerical: "d'une famille catholique pratiquante",
+  communiste: "d'une famille communiste",
+};
+
+const NOTICE_FORMATION: Record<string, string> = {
+  ena: "l'école du pouvoir",
+  droit: "la faculté de droit",
+  eco: "une thèse d'économie",
+  militaire: "quinze ans sous l'uniforme",
+  autodidacte: "aucune école, seulement le terrain",
+  medecin: "la médecine hospitalière",
+  syndicale: "l'école du syndicat",
+  ingenieur: "une grande école d'ingénieurs",
+  journalisme: "le journalisme",
+  prof: "l'enseignement de l'histoire",
+  affaires: "la finance",
+  humanitaire: "quinze ans d'humanitaire",
+  police: "la police nationale",
+  sportif: "le sport de haut niveau",
+};
+
+const NOTICE_MENTOR: Record<string, string> = {
+  baron: "d'un baron local",
+  professeure: "d'une professeure de droit",
+  syndicaliste: "d'un vieux syndicaliste",
+  industriel: "d'un industriel philanthrope",
+  prefet: "d'un ancien préfet",
+  resistante: "de la dernière résistante de son département",
+  personne: "de personne",
+  cure: "du curé de sa paroisse",
+  patronne: "d'une patronne de presse",
+  avocat: "d'un avocat pénaliste",
+  generale: "d'une générale à la retraite",
+  militante: "d'une militante de quartier",
+  banquier: "d'un banquier d'affaires",
+  ennemi: "de son propre adversaire",
+};
+
+/** Ne minuscule que l'article de tête : « Le Rhône » ne devient pas « le rhône ». */
+function articleMinuscule(nom: string): string {
+  return nom.replace(/^(Les|Le|La|L'|Un|Une|Des)/, (m) => m.toLowerCase());
+}
+
 function noticeBio(s: GameState, cause: EndingCause, une: string): string[] {
   const b = s.bio;
   const m = moyennes(s);
-  const region = REGIONS.find((r) => r.id === b.regionId)?.nom ?? "la province";
-  const milieu = MILIEUX.find((r) => r.id === b.milieuId)?.nom.toLowerCase() ?? "un milieu modeste";
-  const formation = FORMATIONS.find((r) => r.id === b.formationId)?.nom.toLowerCase() ?? "des études";
-  const mentor = MENTORS.find((r) => r.id === b.mentorId)?.nom.toLowerCase() ?? "un mentor";
+  const e = b.genre === "f" ? "e" : "";
+  const regionNom = REGIONS.find((r) => r.id === b.regionId)?.nom;
+  const origine = NOTICE_ORIGINE[b.regionId] ?? (regionNom ? `dans ${articleMinuscule(regionNom)}` : "en province");
+  const milieu = NOTICE_MILIEU[b.milieuId] ?? "d'un milieu modeste";
+  const formation = NOTICE_FORMATION[b.formationId] ?? "des études sans relief";
+  const mentor = NOTICE_MENTOR[b.mentorId] ?? "d'un mentor";
   const p: string[] = [];
 
   p.push(
-    `${b.prenom} ${b.nom}, né${b.genre === "f" ? "e" : ""} dans ${region.startsWith("L") ? region.toLowerCase() : region}, issu${b.genre === "f" ? "e" : ""} d'un ${milieu}, passé${b.genre === "f" ? "e" : ""} par ${formation} et formé${b.genre === "f" ? "e" : ""} auprès d${mentor.startsWith("l") ? "e " + mentor : "u " + mentor.replace("le ", "")}, accéda à la présidence de la République après une ascension ${s.flags["pot_de_vin_ascension"] ? "dont certains financements firent l'objet de procédures ultérieures" : "conduite avec méthode"}.`
+    `${b.prenom} ${b.nom}, né${e} ${origine}, issu${e} ${milieu}, passé${e} par ${formation} et formé${e} auprès ${mentor}, accéda à la présidence de la République après une ascension ${s.flags["pot_de_vin_ascension"] ? "dont certains financements firent l'objet de procédures ultérieures" : "conduite avec méthode"}.`
   );
 
   p.push(
     `Sur le plan économique, son mandat afficha une croissance moyenne de ${n(m.croissance)} % et un chômage moyen de ${n(m.chomage)} %, la dette publique évoluant de ${m.detteDelta >= 0 ? "+" : ""}${n(m.detteDelta)} points de PIB.${s.flags["retraites_faite"] ? " La réforme des retraites, adoptée dans la douleur, resta la marque économique de la période." : ""}${s.flags["referendum_perdu"] ? " Le référendum perdu sur les retraites brisa durablement son autorité." : ""}`
   );
+
+  // La ligne politique : ce que les manuels retiendront comme « la période ».
+  const ligne = bordMeta(s.bord);
+  if (Math.abs(s.bord) >= 8) {
+    p.push(
+      s.bord <= -8
+        ? `La présidence bascula dans une économie entièrement dirigée : nationalisations en chaîne, contrôle des capitaux, presse placée sous administration. Les historiens classent la période sous le terme, contesté, de « ${ligne.label.toLowerCase()} ».`
+        : `La présidence installa un régime de préférence nationale et d'exception permanente : registres administratifs, dissolutions par décret, juridiction constitutionnelle suspendue. Les historiens classent la période sous le terme, contesté, de « ${ligne.label.toLowerCase()} ».`
+    );
+  } else if (Math.abs(s.bord) >= 5) {
+    p.push(
+      `Sur le plan idéologique, le mandat fut celui d'une ${ligne.label.toLowerCase()} assumée — ligne que ses partisans jugèrent courageuse et ses adversaires irresponsable, sans que les faits n'aient jamais tout à fait tranché.`
+    );
+  } else if (Math.abs(s.bord) <= 1) {
+    p.push(
+      "Aucune école de pensée ne revendique aujourd'hui son héritage : le mandat fut celui d'un arbitrage permanent, que les uns nomment sens de l'État et les autres absence de convictions."
+    );
+  }
 
   const lib: string[] = [];
   if (s.derive >= 8) lib.push("Les institutions furent profondément altérées : état d'exception installé, presse domestiquée, contre-pouvoirs neutralisés. Les juristes parlent d'une « présidence hors du cadre ».");
@@ -245,6 +346,16 @@ const ENDINGS: Record<string, EndingMeta> = {
     id: "cincinnatus", nom: "Cincinnatus", famille: "Fin rare", rarete: "exceptionnelle",
     une: () => "« L'HOMME QUI A RENDU LES CLÉS » — Le Fil, sous la plume de Louise Ferrand. C'est son premier article élogieux en vingt ans.",
     epitaphe: () => "Vous aviez tout le pouvoir. Vous l'avez rendu. Les manuels de droit constitutionnel ont dû créer une note de bas de page pour vous.",
+  },
+  republique_populaire: {
+    id: "republique_populaire", nom: "La République populaire", famille: "Sortie autoritaire", rarete: "exceptionnelle",
+    une: () => "« LE COMITÉ ANNONCE LA FIN DE LA PÉRIODE DE TRANSITION » — L'Écho du Peuple, quotidien unique, page 1, quatorzième année.",
+    epitaphe: () => "Vous vouliez que tout appartienne à tous. À la fin, tout vous appartenait — et personne n'osait le formuler ainsi.",
+  },
+  etat_national: {
+    id: "etat_national", nom: "L'État national", famille: "Sortie autoritaire", rarete: "exceptionnelle",
+    une: () => "« LA NATION RASSEMBLÉE, LE PRÉSIDENT RECONDUIT » — Le Journal de la Nation, tirage obligatoire dans les administrations.",
+    epitaphe: () => "Vous vouliez rendre le pays à ceux qui y étaient nés. Il ne reste qu'un registre, un drapeau, et beaucoup de silence.",
   },
   hiver: {
     id: "hiver", nom: "L'Hiver", famille: "Catastrophe", rarete: "exceptionnelle",
