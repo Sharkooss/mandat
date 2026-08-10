@@ -35,15 +35,16 @@ Aucune migration, aucun volume, aucun secret applicatif.
 
 Le workflow [.github/workflows/deploy.yml](.github/workflows/deploy.yml) build le projet à chaque push sur `main`, puis se connecte au VPS en SSH et exécute `git pull` + `docker compose up -d --build` dans `/srv/docker/apps/mandat`.
 
-Secrets à créer dans le repo GitHub (Settings → Secrets and variables → Actions) :
+Secrets utilisés (déjà configurés dans le repo) :
 
-| Secret        | Valeur                                              |
-| ------------- | --------------------------------------------------- |
-| `VPS_HOST`    | `92.222.247.229`                                    |
-| `VPS_USER`    | l'utilisateur SSH du VPS                            |
-| `VPS_SSH_KEY` | la clé privée SSH (contenu du fichier, format PEM)  |
+| Secret        | Valeur                                                    |
+| ------------- | --------------------------------------------------------- |
+| `VPS_HOST`    | `92.222.247.229`                                          |
+| `VPS_USER`    | `ubuntu`                                                  |
+| `VPS_SSH_KEY` | clé privée dédiée `~/.ssh/mandat_deploy` (une par app)    |
+| `VPS_PORT`    | optionnel, `22` par défaut                                |
 
-Premier déploiement : cloner le repo sur le VPS à la main (commandes ci-dessus) — la CI ne fait ensuite que le mettre à jour.
+La clé publique correspondante est dans `~/.ssh/authorized_keys` du VPS. Le workflow fait un miroir strict de `origin/main` (`git reset --hard`), rebuild, puis vérifie que le site répond avant de réussir.
 
 ## Développement local
 
