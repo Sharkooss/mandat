@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import type { CheckResult, GameEvent, GameState, PressItem, Rarete } from "../engine/types";
 import type { Delta } from "../engine/deltas";
 import { CAST, CAST_TAGS, SEGMENTS, PROMESSES } from "../content/france/data";
@@ -441,6 +441,21 @@ function Entourage({ s }: { s: GameState }) {
   const [filtre, setFiltre] = useState<string | null>(null);
   const setFocus = useGame((g) => g.setFocus);
   const focus = s.focusCharacter;
+  const cible = useRef<HTMLDivElement>(null);
+
+  // Cliquer sur un nom dans un texte doit amener la fiche sous les yeux : on
+  // lève d'abord le filtre s'il la masque, puis on fait défiler jusqu'à elle.
+  useEffect(() => {
+    if (!focus) return;
+    const perso = CAST.find((c) => c.id === focus);
+    setFiltre((f) => (f && perso && perso.camp !== f ? null : f));
+  }, [focus]);
+
+  useEffect(() => {
+    if (!focus) return;
+    cible.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [focus, filtre]);
+
   const camps = [
     ["gouvernement", "Gouvernement"],
     ["parti", "Parti"],
@@ -451,10 +466,9 @@ function Entourage({ s }: { s: GameState }) {
     ["intime", "Intimes"],
   ] as const;
 
-  // Le personnage cliqué dans un texte remonte en tête de liste.
-  const liste = CAST.filter((c) => s.characters[c.id]?.vivant && (!filtre || c.camp === filtre)).sort((a, b) =>
-    a.id === focus ? -1 : b.id === focus ? 1 : 0
-  );
+  // L'ordre reste celui du casting : on va chercher la fiche là où elle est
+  // plutôt que de réarranger la liste sous les yeux du joueur.
+  const liste = CAST.filter((c) => s.characters[c.id]?.vivant && (!filtre || c.camp === filtre));
 
   return (
     <div>
@@ -483,19 +497,20 @@ function Entourage({ s }: { s: GameState }) {
         ))}
       </div>
 
-      <div className="space-y-1.5 max-h-[420px] overflow-y-auto pr-1">
+      <div className="space-y-1.5 max-h-[420px] panneau-scroll">
         {liste.map((c) => {
           const st = s.characters[c.id];
           const nom = c.id === "conjoint" ? s.bio.conjointPrenom : c.nom;
           const rel = relationMeta(st.loyaute);
-          const cible = focus === c.id;
+          const suivi = focus === c.id;
           return (
             <div
               key={c.id}
-              className={`card-flat px-2.5 py-2 ${cible ? "pop-in" : ""}`}
+              ref={suivi ? cible : undefined}
+              className={`card-flat px-2.5 py-2 ${suivi ? "pop-in" : ""}`}
               style={{
                 borderLeft: `3px solid ${CAMP_TONE[c.camp]}`,
-                boxShadow: cible ? `0 0 0 2px ${CAMP_TONE[c.camp]}` : undefined,
+                boxShadow: suivi ? `0 0 0 2px ${CAMP_TONE[c.camp]}` : undefined,
               }}
             >
               <div className="flex items-center justify-between gap-2">
@@ -807,7 +822,7 @@ export function Ledger({ s }: { s: GameState }) {
         </span>
       </button>
       {ouvert && (
-        <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+        <div className="space-y-2.5 max-h-[420px] panneau-scroll">
           {groupes.slice(0, 8).map((gr, gi) => (
             <div key={gi}>
               <div className="text-[9px] uppercase tracking-wider mb-1" style={{ color: "var(--color-faint)" }}>

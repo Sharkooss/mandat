@@ -272,7 +272,7 @@ export default function Mandate({ s }: { s: GameState }) {
           {s.log.length > 0 && (
             <div className="card p-4">
               <div className="label mb-2">Ce que l'Histoire retiendra</div>
-              <div className="space-y-2 max-h-52 overflow-y-auto text-[12px] leading-snug pr-1">
+              <div className="space-y-2 max-h-52 panneau-scroll text-[12px] leading-snug">
                 {[...s.log].reverse().slice(0, 12).map((l, i) => (
                   <div key={i} className="flex gap-2">
                     <span style={{ color: "var(--accent)" }}>◆</span>

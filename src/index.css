@@ -207,17 +207,25 @@ body {
   white-space: nowrap;
 }
 
-/* Infobulle : le jeu doit s'expliquer au survol, sans manuel. */
+/*
+ * Infobulle : le jeu doit s'expliquer au survol, sans manuel.
+ *
+ * `display: none` au repos plutôt qu'une simple opacité : une bulle absolue
+ * de 250 px reste dans le flux de débordement même invisible, et suffit à
+ * faire apparaître une barre de défilement horizontale dans le moindre
+ * panneau qui défile. Elle ne doit exister que pendant le survol.
+ */
 [data-aide] {
   position: relative;
   cursor: help;
 }
 [data-aide]::after {
   content: attr(data-aide);
+  display: none;
   position: absolute;
   bottom: calc(100% + 8px);
   left: 50%;
-  transform: translateX(-50%) translateY(4px);
+  transform: translateX(-50%);
   width: max-content;
   max-width: 250px;
   white-space: normal;
@@ -231,15 +239,80 @@ body {
   font-weight: 400;
   letter-spacing: 0;
   line-height: 1.45;
-  opacity: 0;
   pointer-events: none;
-  transition: opacity 0.15s ease, transform 0.15s ease;
   z-index: 60;
   box-shadow: 0 12px 28px -12px rgb(0 0 0 / 0.9);
 }
 [data-aide]:hover::after {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  display: block;
+  animation: aideApparait 0.15s ease both;
+}
+@keyframes aideApparait {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Panneaux défilants (entourage, journal)                             */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Une colonne latérale ne défile que verticalement. La marge négative rend
+ * au contenu la largeur que la respiration lui prend, pour que le halo de
+ * mise en avant ne soit pas rongé par le bord du panneau.
+ */
+.panneau-scroll {
+  overflow-x: hidden; /* repli pour les navigateurs sans `clip` */
+  overflow-x: clip;
+  overflow-y: auto;
+  padding-inline: 6px;
+  margin-inline: -6px;
+  padding-block: 3px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+.panneau-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+/*
+ * Les infobulles des fiches s'ancrent sur la fiche entière et non sur
+ * l'étiquette survolée : centrées sur une pastille de 60 px, elles
+ * sortiraient du panneau et se feraient couper.
+ */
+.panneau-scroll .card-flat {
+  position: relative;
+}
+.panneau-scroll .card-flat [data-aide] {
+  position: static;
+}
+.panneau-scroll .card-flat [data-aide]::after {
+  top: calc(100% + 6px);
+  bottom: auto;
+  left: 4px;
+  right: 4px;
+  width: auto;
+  max-width: none;
+  transform: none;
+}
+.panneau-scroll .card-flat [data-aide]:hover::after {
+  animation-name: aidePanneau;
+}
+@keyframes aidePanneau {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .chip {
