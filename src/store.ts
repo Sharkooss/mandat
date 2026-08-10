@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Bio, GameState } from "./engine/types";
-import { makeInitialState, applyBio, rngOf } from "./engine/init";
+import { makeInitialState, applyBio, rngOf, normalizeState } from "./engine/init";
 import { randomSeed } from "./engine/rng";
 import { makeCtx } from "./engine/ctx";
 import { getEvent, getCrise } from "./engine/registry";
@@ -28,6 +28,9 @@ export interface PantheonEntry {
 interface Store {
   game: GameState | null;
   pantheon: PantheonEntry[];
+  /** Dernière erreur d'action — affichée au joueur plutôt que subie en silence. */
+  lastError: string | null;
+  clearError: () => void;
   newGame: () => void;
   abandon: () => void;
   submitBio: (bio: Bio) => void;
@@ -151,9 +154,13 @@ function endTurnFlow(s: GameState): void {
 
 export const useGame = create<Store>()(
   persist(
-    (set, get) => ({
+    (set, get) => {
+    const api: Store = {
       game: null,
       pantheon: [],
+      lastError: null,
+
+      clearError: () => set({ lastError: null }),
 
       newGame: () => {
         set({ game: makeInitialState(randomSeed()) });
@@ -405,8 +412,38 @@ export const useGame = create<Store>()(
         startTurn(s);
         set({ game: s });
       },
-    }),
-    { name: "mandat-save", version: 1 }
+    };
+
+    // Filet de sécurité : si une action échoue, le joueur doit le voir.
+    // Un bouton qui ne fait rien est le pire des bugs.
+    for (const cle of Object.keys(api) as (keyof Store)[]) {
+      const valeur = api[cle];
+      if (typeof valeur !== "function" || cle === "clearError") continue;
+      const original = valeur as (...args: unknown[]) => unknown;
+      (api[cle] as unknown) = (...args: unknown[]) => {
+        try {
+          return original(...args);
+        } catch (e) {
+          console.error("[MANDAT]", cle, e);
+          set({ lastError: e instanceof Error ? e.message : String(e) });
+        }
+      };
+    }
+    return api;
+    },
+    {
+      name: "mandat-save",
+      version: 2,
+      // Une partie commencée sur une version antérieure doit rester jouable :
+      // on recomplète les champs apparus depuis plutôt que de la jeter.
+      migrate: (persisted) => {
+        const p = persisted as { game?: GameState | null; pantheon?: PantheonEntry[] } | undefined;
+        return { game: normalizeState(p?.game), pantheon: p?.pantheon ?? [] };
+      },
+      onRehydrateStorage: () => (state) => {
+        if (state?.game) state.game = normalizeState(state.game);
+      },
+    }
   )
 );
 

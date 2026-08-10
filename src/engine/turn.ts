@@ -165,6 +165,8 @@ const UNES_SERVILES = [
 /** Fige les indicateurs en début de trimestre et calcule les tendances du précédent. */
 export function updateTrends(s: GameState): void {
   const courant: Record<string, number> = { ...s.country, ...s.power };
+  if (!s.trendBase) s.trendBase = {};
+  if (!s.trends) s.trends = {};
   if (Object.keys(s.trendBase).length > 0) {
     const t: Record<string, number> = {};
     for (const [k, v] of Object.entries(courant)) t[k] = v - (s.trendBase[k] ?? v);

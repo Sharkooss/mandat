@@ -136,7 +136,7 @@ function MetricCard({ m, trend }: { m: MetricSpec; trend?: number }) {
 // Le retour visuel après une décision
 // ---------------------------------------------------------------------------
 
-export function DeltaChips({ deltas, signals }: { deltas: Delta[]; signals: string[] }) {
+export function DeltaChips({ deltas = [], signals = [] }: { deltas?: Delta[]; signals?: string[] }) {
   if (deltas.length === 0 && signals.length === 0) return null;
   return (
     <div className="mt-4 space-y-2">

@@ -66,6 +66,41 @@ export function makeInitialState(seed: number): GameState {
   };
 }
 
+/**
+ * Complète une sauvegarde ancienne avec les champs ajoutés depuis.
+ * Une partie en cours ne doit jamais casser parce que le jeu a évolué.
+ */
+export function normalizeState(saved: Partial<GameState> | null | undefined): GameState | null {
+  if (!saved || typeof saved !== "object") return null;
+  const base = makeInitialState(saved.seed ?? 1);
+  const out = { ...base, ...saved } as GameState;
+
+  // Objets imbriqués : on complète clé par clé plutôt que de remplacer.
+  out.player = { ...base.player, ...(saved.player ?? {}) };
+  out.country = { ...base.country, ...(saved.country ?? {}) };
+  out.power = { ...base.power, ...(saved.power ?? {}) };
+  out.hidden = { ...base.hidden, ...(saved.hidden ?? {}) };
+  out.bio = { ...base.bio, ...(saved.bio ?? {}) };
+  out.characters = { ...base.characters, ...(saved.characters ?? {}) };
+  out.segments = { ...base.segments, ...(saved.segments ?? {}) };
+  out.flags = saved.flags ?? {};
+
+  // Tableaux et registres ajoutés au fil des versions.
+  out.promises = saved.promises ?? [];
+  out.delayed = saved.delayed ?? [];
+  out.fired = saved.fired ?? [];
+  out.queue = saved.queue ?? [];
+  out.press = saved.press ?? [];
+  out.pressArchive = saved.pressArchive ?? [];
+  out.log = saved.log ?? [];
+  out.actionsUsed = saved.actionsUsed ?? [];
+  out.lastDeltas = saved.lastDeltas ?? [];
+  out.lastSignals = saved.lastSignals ?? [];
+  out.trends = saved.trends ?? {};
+  out.trendBase = saved.trendBase ?? {};
+  return out;
+}
+
 /** Applique les cinq choix de l'Acte I : stats, relations, et bombes biographiques. */
 export function applyBio(s: GameState, bio: Bio): void {
   s.bio = bio;
