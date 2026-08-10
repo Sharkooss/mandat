@@ -16,21 +16,51 @@ interface Props {
 
 interface State {
   erreur: Error | null;
+  /** Où en était la partie — en production, le message seul ne suffit pas. */
+  contexte: string;
+}
+
+/**
+ * Le strict nécessaire pour diagnostiquer sur une capture d'écran : l'écran en
+ * cours et la pile des composants. En production le code est minifié, donc le
+ * message d'erreur seul ne désigne jamais le coupable.
+ */
+function contexteDePartie(pile?: string | null): string {
+  const lignes: string[] = [];
+  try {
+    const brut = localStorage.getItem("mandat-save");
+    const jeu = brut ? JSON.parse(brut)?.state?.game : null;
+    lignes.push(
+      jeu
+        ? `écran ${jeu.act}/${jeu.phase} · mandat ${jeu.mandat} · semestre ${jeu.turn}` +
+            (jeu.campaign ? ` · campagne ${jeu.campaign.kind} s${jeu.campaign.week}` : "") +
+            (jeu.currentEvent ? ` · événement ${jeu.currentEvent}` : "")
+        : "aucune partie enregistrée"
+    );
+  } catch {
+    lignes.push("sauvegarde illisible");
+  }
+  if (pile) {
+    const premières = pile.split("\n").filter(Boolean).slice(0, 4).join("\n");
+    lignes.push(premières);
+  }
+  return lignes.join("\n");
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
-  state: State = { erreur: null };
+  state: State = { erreur: null, contexte: "" };
 
-  static getDerivedStateFromError(erreur: Error): State {
+  static getDerivedStateFromError(erreur: Error): Partial<State> {
     return { erreur };
   }
 
   componentDidCatch(erreur: Error, info: ErrorInfo): void {
     console.error("[MANDAT] rendu interrompu", erreur, info.componentStack);
+    this.setState({ contexte: contexteDePartie(info.componentStack) });
   }
 
   render() {
-    const { erreur } = this.state;
+    const { erreur, contexte } = this.state;
     if (!erreur) return this.props.children;
 
     return (
@@ -45,10 +75,11 @@ export default class ErrorBoundary extends Component<Props, State> {
             c'est presque toujours suffisant.
           </p>
           <pre
-            className="text-[11px] text-left p-3 rounded-lg mb-5 overflow-auto max-h-32"
+            className="text-[11px] text-left p-3 rounded-lg mb-5 overflow-auto max-h-48 whitespace-pre-wrap"
             style={{ background: "var(--color-surface-2)", color: "var(--color-faint)" }}
           >
             {erreur.message}
+            {contexte ? `\n${contexte}` : ""}
           </pre>
           <div className="flex gap-2 justify-center flex-wrap">
             <button className="btn-primary" onClick={() => location.reload()}>

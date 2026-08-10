@@ -31,7 +31,20 @@ function NoteBar({ nom, note }: { nom: string; note: number }) {
 
 export default function Final({ s }: { s: GameState }) {
   const abandon = useGame((g) => g.abandon);
-  const e = s.ending!;
+  // Une fin enregistrée par une version antérieure peut ne pas avoir toutes
+  // ses sections. On préfère une carte de fin incomplète à un écran mort.
+  const brut = s.ending!;
+  const e = {
+    ...brut,
+    epilogue: brut.epilogue ?? [],
+    notice: brut.notice ?? [],
+    comparatif: brut.comparatif ?? [],
+    verdict: {
+      jugement: brut.verdict?.jugement ?? "",
+      axesNationaux: brut.verdict?.axesNationaux ?? [],
+      axesPersonnels: brut.verdict?.axesPersonnels ?? [],
+    },
+  };
   const tone = RARETE_TONE[e.rarete] ?? "var(--color-r-commune)";
   // La notice cite les ministres, les rivaux, les journalistes : elle doit
   // parler des gens de cette partie-ci.

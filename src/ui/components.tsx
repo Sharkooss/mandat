@@ -1,5 +1,5 @@
 ﻿import { useEffect, useRef, useState } from "react";
-import type { CheckResult, GameEvent, GameState, PressItem, Rarete } from "../engine/types";
+import type { CheckResult, Choice, GameEvent, GameState, PressItem, Rarete } from "../engine/types";
 import type { Delta } from "../engine/deltas";
 import { CAST, CAST_TAGS, NATIONS, SEGMENTS, PROMESSES } from "../content/france/data";
 import { ETAPES_ENQUETE, majorite, SEUIL_ALLIE, SEUIL_HOSTILE } from "../engine/europe";
@@ -348,7 +348,32 @@ export function EventView({ s }: { s: GameState }) {
   const ev = s.currentEvent ? getEvent(s.currentEvent) : null;
   if (!ev) return null;
   const source = ev.source ? CAST.find((c) => c.id === ev.source) : null;
-  const texte = typeof ev.texte === "function" ? ev.texte(s) : ev.texte;
+  // Beaucoup de textes d'événements supposent leur contexte (`s.vendetta!`,
+  // `s.europe.enquete!`). Si la situation s'est défaite entre le moment où
+  // l'événement a été mis en file et celui où il s'affiche, la fonction lève —
+  // et emportait tout l'écran. On préfère un événement muet à une page noire.
+  let texte: string;
+  try {
+    const rendu = typeof ev.texte === "function" ? ev.texte(s) : ev.texte;
+    texte = typeof rendu === "string" ? rendu : "";
+  } catch (e) {
+    console.error("[MANDAT] texte d'événement illisible", ev.id, e);
+    texte = "";
+  }
+  // Même prudence sur les choix : `dynamicChoices` et les `cond` lisent le même
+  // contexte, et échouent donc dans les mêmes circonstances.
+  let choix: Choice[] = [];
+  try {
+    choix = [...ev.choices, ...(ev.dynamicChoices?.(s) ?? [])].filter((c) => {
+      try {
+        return !c.cond || c.cond(s);
+      } catch {
+        return false;
+      }
+    });
+  } catch (e) {
+    console.error("[MANDAT] choix d'événement illisibles", ev.id, e);
+  }
   const meta = KIND_META[ev.kind] ?? KIND_META.standard;
   const rarete = rareteOf(ev);
   // Les titres et les intitulés de choix citent eux aussi des noms.
@@ -377,24 +402,34 @@ export function EventView({ s }: { s: GameState }) {
             {texte}
           </RichText>
           <div className="space-y-2 stagger">
-            {[...ev.choices, ...(ev.dynamicChoices?.(s) ?? [])]
-              .filter((c) => !c.cond || c.cond(s))
-              .map((c, i) => (
-                <button
-                  key={c.id}
-                  className="btn-choice"
-                  style={{ "--tone": [TONE.eco, TONE.social, TONE.monde, TONE.perso][i % 4] } as React.CSSProperties}
-                  onClick={() => chooseOption(c.id)}
-                >
-                  <div className="font-semibold text-[14px]">{N(c.label)}</div>
-                  {c.detail && (
-                    <div className="text-[12px] mt-0.5" style={{ color: "var(--color-faint)" }}>
-                      {N(c.detail)}
-                    </div>
-                  )}
-                </button>
-              ))}
+            {choix.map((c, i) => (
+              <button
+                key={c.id}
+                className="btn-choice"
+                style={{ "--tone": [TONE.eco, TONE.social, TONE.monde, TONE.perso][i % 4] } as React.CSSProperties}
+                onClick={() => chooseOption(c.id)}
+              >
+                <div className="font-semibold text-[14px]">{N(c.label)}</div>
+                {c.detail && (
+                  <div className="text-[12px] mt-0.5" style={{ color: "var(--color-faint)" }}>
+                    {N(c.detail)}
+                  </div>
+                )}
+              </button>
+            ))}
           </div>
+          {/* Un événement sans issue est une partie bloquée : on laisse
+              toujours une porte, même quand le contenu n'en propose plus. */}
+          {choix.length === 0 && (
+            <div>
+              <p className="text-[13px] italic mb-4" style={{ color: "var(--color-faint)" }}>
+                La situation s'est dénouée d'elle-même avant que vous ayez eu à trancher.
+              </p>
+              <button className="btn-primary" onClick={continueAfter}>
+                Continuer
+              </button>
+            </div>
+          )}
         </>
       ) : (
         <div className="fade-in">

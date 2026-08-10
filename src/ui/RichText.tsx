@@ -41,6 +41,10 @@ function aliasValide(a: string): boolean {
  * tirés pour la partie, pas ceux écrits dans le contenu.
  */
 export function tokenize(texte: string, alias: { alias: string; id: string }[]): Token[] {
+  // Un texte manquant ne doit jamais emporter l'écran : le contenu est vaste,
+  // et il suffit d'une fonction `texte` qui oublie un `return` pour que tout
+  // le jeu devienne une page noire.
+  if (typeof texte !== "string") return [];
   const entrees = alias.filter((e) => aliasValide(e.alias));
   if (entrees.length === 0) return [{ type: "texte", contenu: texte }];
   entrees.sort((a, b) => b.alias.length - a.alias.length);
@@ -79,10 +83,18 @@ export function useTexte(texte: string): string {
   return useMemo(() => substituerNoms(texte, game), [texte, game?.castNames]);
 }
 
-export function RichText({ children, className, style }: { children: string; className?: string; style?: React.CSSProperties }) {
+export function RichText({
+  children,
+  className,
+  style,
+}: {
+  children: string | null | undefined;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
   const game = useGame((g) => g.game);
   const setFocus = useGame((g) => g.setFocus);
-  const texte = useTexte(children);
+  const texte = useTexte(typeof children === "string" ? children : "");
   const tokens = useMemo(() => (game ? tokenize(texte, aliasAffiches(game)) : [{ type: "texte" as const, contenu: texte }]), [texte, game?.castNames, game?.bio.conjointPrenom]);
 
   return (

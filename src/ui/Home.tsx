@@ -11,7 +11,8 @@ const RARETE_TONE: Record<string, string> = {
 
 export default function Home() {
   const newGame = useGame((g) => g.newGame);
-  const pantheon = useGame((g) => g.pantheon);
+  // Une sauvegarde d'une version antérieure peut n'avoir jamais eu de panthéon.
+  const pantheon = useGame((g) => g.pantheon) ?? [];
 
   return (
     <div className="max-w-2xl mx-auto pt-16 px-5 pb-16 fade-in">
