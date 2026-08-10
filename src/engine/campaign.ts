@@ -1,6 +1,7 @@
 ﻿import type { CampaignState, CheckRang, GameState } from "./types";
 import type { Rng } from "./rng";
 import { clamp } from "./ctx";
+import { nomCompletDe } from "./noms";
 
 // ---------------------------------------------------------------------------
 // Les scores : le vrai score n'est jamais montré tel quel.
@@ -41,6 +42,224 @@ export function sondageAffiche(s: GameState, rng: Rng): { joueur: number; opposa
     joueur: Math.round(clamp(i.joueur + (rng.next() - 0.5) * 4 + c.dynamique * 0.4, 5, 90)),
     opposant: Math.round(clamp(i.opposant + (rng.next() - 0.5) * 4 - c.dynamique * 0.2, 5, 90)),
   };
+}
+
+// ---------------------------------------------------------------------------
+// La campagne d'en face.
+//
+// Une campagne où seul le joueur agit n'est pas une élection, c'est un
+// entraînement. L'adversaire a désormais son arsenal — et cet arsenal est tiré
+// de votre bilan réel : chaque semaine, il choisit le chiffre qui vous
+// embarrasse le plus et en fait son sujet. On ne peut pas tout couvrir : c'est
+// exactement le problème qu'on veut poser au joueur.
+// ---------------------------------------------------------------------------
+
+export interface Riposte {
+  id: string;
+  /** Le thème, affiché au joueur — c'est sa ligne de campagne. */
+  theme: string;
+  /** Plus le grief est fondé, plus le coup porte. Rend 0 quand il ne l'est pas. */
+  force: (s: GameState) => number;
+  attaque: (s: GameState) => string;
+  /** Là où l'attaque mord : le segment qu'elle détache de vous. */
+  segments: string[];
+  /**
+   * À qui l'attaque peut être adressée. On ne reproche pas son bilan à
+   * quelqu'un qui n'a jamais gouverné, ni son inexpérience à un sortant.
+   */
+  quand?: "sortant" | "candidat";
+}
+
+export const RIPOSTES: Riposte[] = [
+  // --- Contre un sortant : son bilan ---------------------------------------
+  {
+    id: "chomage",
+    quand: "sortant",
+    theme: "Le chômage",
+    force: (s) => Math.max(0, s.country.chomage - 7) * 1.4,
+    segments: ["periurbain", "jeunes"],
+    attaque: (s) =>
+      `« ${s.country.chomage.toFixed(1)} pour cent. Voilà le bilan. Pas un slogan : un chiffre, et derrière ce chiffre, des gens que vous avez cessé de compter. »`,
+  },
+  {
+    id: "vie_chere",
+    quand: "sortant",
+    theme: "La vie chère",
+    force: (s) => Math.max(0, s.country.inflation - 2.2) * 2.2,
+    segments: ["retraites", "pavillonnaires"],
+    attaque: () =>
+      `Le déplacement se fait dans un supermarché, caddie à la main, avec les prix filmés en gros plan. « Expliquez-leur, vous, ce que veut dire "maîtrisé". »`,
+  },
+  {
+    id: "dette",
+    quand: "sortant",
+    theme: "La dette",
+    force: (s) => Math.max(0, s.country.dette - 118) * 0.5,
+    segments: ["csp", "independants"],
+    attaque: (s) =>
+      `« ${Math.round(s.country.dette)} % du PIB. Nous ne parlons plus de gestion, nous parlons de ce que vos enfants rembourseront. »`,
+  },
+  {
+    id: "services",
+    quand: "sortant",
+    theme: "Les services publics",
+    force: (s) => Math.max(0, 45 - s.country.services) * 1.1,
+    segments: ["public", "ruraux"],
+    attaque: () =>
+      `Trois jours de tournée dans des hôpitaux et des sous-préfectures fermées. Aucune promesse, aucune formule : juste des portes closes, filmées les unes après les autres.`,
+  },
+  {
+    id: "insecurite",
+    quand: "sortant",
+    theme: "L'insécurité",
+    force: (s) => Math.max(0, 48 - s.country.securite) * 1.1,
+    segments: ["pavillonnaires", "retraites"],
+    attaque: () =>
+      `Le fait divers de la semaine devient un meeting. C'est indécent, c'est efficace, et tout le monde le sait — y compris ceux qui applaudissent.`,
+  },
+  {
+    id: "fracture",
+    quand: "sortant",
+    theme: "La fracture du pays",
+    force: (s) => Math.max(0, 42 - s.country.cohesion) * 1.2,
+    segments: ["quartiers", "urbains"],
+    attaque: () =>
+      `« Vous avez trouvé un pays divisé. Vous en rendez deux. » La formule est injuste et fera l'ouverture des journaux pendant trois jours.`,
+  },
+  {
+    id: "parole",
+    theme: "La parole donnée",
+    force: (s) => s.propos.filter((p) => !p.tenu).length * 9,
+    segments: ["periurbain", "jeunes", "public"],
+    attaque: (s) => {
+      const renie = [...s.propos].filter((p) => !p.tenu).sort((a, b) => a.turn - b.turn)[0];
+      return renie
+        ? `Le clip dure onze secondes : vous, ${renie.contexte}, disant « ${renie.citation} ». Puis un écran noir, et une date. Il tourne en boucle depuis ce matin.`
+        : `« Vous avez dit. Vous n'avez pas fait. Le reste est de la communication. »`;
+    },
+  },
+  {
+    id: "promesses",
+    quand: "sortant",
+    theme: "Le programme abandonné",
+    force: (s) => s.promises.filter((p) => p.status === "trahie").length * 8,
+    segments: ["periurbain", "public", "jeunes"],
+    attaque: () =>
+      `Son équipe fait imprimer votre profession de foi d'il y a cinq ans, telle quelle, et la distribue sur les marchés. Sans commentaire. C'est le commentaire.`,
+  },
+  {
+    id: "affaires",
+    quand: "sortant",
+    theme: "Les affaires",
+    force: (s) => (s.europe?.dossiers?.filter((d) => d.public).length ?? 0) * 12 + (s.europe?.enquete ? 10 : 0),
+    segments: ["csp", "urbains", "retraites"],
+    attaque: () =>
+      `« Je ne parlerai pas des procédures en cours. » Il le dit trois fois en dix minutes, ce qui permet d'en parler trois fois.`,
+  },
+  {
+    id: "derive",
+    quand: "sortant",
+    theme: "Les libertés",
+    force: (s) => s.derive * 3.2,
+    segments: ["urbains", "jeunes", "public"],
+    attaque: () =>
+      `Le meeting s'ouvre sur la lecture des décrets pris depuis cinq ans. Rien d'inventé, rien de commenté : la lecture suffit, et la salle se lève.`,
+  },
+  {
+    id: "usure",
+    quand: "sortant",
+    theme: "L'usure",
+    force: (s) => Math.max(0, s.hidden.fatigue - 55) * 0.7 + Math.max(0, 45 - s.power.popularite) * 0.5,
+    segments: ["pavillonnaires", "retraites"],
+    attaque: () =>
+      `« Regardez-le. Regardez-nous. » Le duel de photos est humiliant et ne relève d'aucun argument. Il porte quand même.`,
+  },
+  {
+    id: "rang",
+    quand: "sortant",
+    theme: "Le rang de la France",
+    force: (s) => Math.max(0, 55 - s.country.prestige) * 0.6 + Math.max(0, 45 - s.country.influence) * 0.5,
+    segments: ["csp", "urbains"],
+    attaque: () =>
+      `Il énumère les sommets où la France n'a rien obtenu. La liste est longue, exacte, et récitée sans une note.`,
+  },
+
+  // --- Contre un candidat : ce qu'il promet et ce qu'il vaut ---------------
+  {
+    id: "addition",
+    quand: "candidat",
+    theme: "Le coût du programme",
+    force: (s) => s.promises.filter((p) => p.status === "en_cours").length * 3.2,
+    segments: ["csp", "independants", "retraites"],
+    attaque: () =>
+      `Ses équipes ont chiffré votre programme et publient le total en gros caractères. Le chiffre est contestable ; il est déjà repris partout, et vous passerez la semaine à contester au lieu de proposer.`,
+  },
+  {
+    id: "inexperience",
+    quand: "candidat",
+    theme: "L'inexpérience",
+    force: (s) => Math.max(0, 55 - s.player.strategie) * 0.6 + Math.max(0, 45 - s.player.reseau) * 0.4,
+    segments: ["retraites", "csp", "pavillonnaires"],
+    attaque: () =>
+      `« Diriger la France, ce n'est pas un premier emploi. » La phrase est condescendante et fonctionne : elle vise exactement les électeurs qui hésitent encore.`,
+  },
+  {
+    id: "extremite",
+    quand: "candidat",
+    theme: "Votre ligne",
+    force: (s) => Math.max(0, Math.abs(s.bord) - 3) * 3.4,
+    segments: ["pavillonnaires", "retraites", "urbains"],
+    attaque: (s) =>
+      s.bord < 0
+        ? `Il ne débat plus avec vous : il lit votre programme à voix haute devant des chefs d'entreprise, en s'arrêtant après chaque ligne. C'est un procédé, et les salles rient.`
+        : `Il ressort chacune de vos formules sur l'identité, dans l'ordre, sans commentaire, puis demande : « Vous confirmez ? » Vous ne pouvez ni confirmer ni vous dédire.`,
+  },
+];
+
+/** Les attaques recevables selon qu'on défend un bilan ou qu'on en promet un. */
+export function arsenalContre(s: GameState, sortant: boolean): Riposte[] {
+  return RIPOSTES.filter((r) => !r.quand || r.quand === (sortant ? "sortant" : "candidat"));
+}
+
+/** Le grief le mieux fondé — c'est de là que l'adversaire fera sa campagne. */
+export function ligneAdverse(s: GameState, sortant = true): Riposte | null {
+  const classees = arsenalContre(s, sortant).sort((a, b) => b.force(s) - a.force(s));
+  return classees[0] && classees[0].force(s) > 4 ? classees[0] : null;
+}
+
+/**
+ * La riposte de la semaine. Elle est étouffée quand le joueur a occupé le
+ * terrain lui-même — c'est ce qui rend « attaquer » autre chose qu'un caprice.
+ */
+export function riposter(s: GameState, rng: Rng): string | null {
+  const c = s.campaign;
+  if (!c) return null;
+  c.derniereRiposte = undefined;
+  const jouees = c.ripostesJouees ?? [];
+  const arsenal = arsenalContre(s, c.kind === "reelection").filter((r) => r.force(s) > 4 && !jouees.includes(r.id));
+  if (arsenal.length === 0) return null;
+  const choisie = rng.weighted(arsenal.map((r) => ({ item: r, weight: r.force(s) })));
+
+  // Occuper le terrain soi-même coûte cher mais protège : une attaque, un
+  // plateau ou un débat laissent moins de place au sujet d'en face.
+  const couvert = c.lastAction === "attaque" || c.lastAction === "plateau";
+  const ampleur = (choisie.force(s) / 26) * (couvert ? 0.45 : 1);
+  const degat = Math.min(5, Math.max(1, Math.round(ampleur * 3)));
+
+  c.dynamique = clamp(c.dynamique - degat, -10, 10);
+  c.opposantScore = clamp(c.opposantScore + Math.min(3, degat));
+  for (const id of choisie.segments) {
+    const seg = s.segments[id];
+    if (seg) seg.soutien = clamp(seg.soutien - Math.max(1, degat - 1));
+  }
+  c.ripostesJouees = [...jouees, choisie.id];
+
+  const nom = nomCompletDe(s, c.opposantId);
+  const texte = `${nom} a fait de ${choisie.theme.toLowerCase()} son sujet de la semaine. ${choisie.attaque(s)}${
+    couvert ? " Vous occupiez l'antenne : le coup passe en deuxième titre." : ""
+  }`;
+  c.derniereRiposte = texte;
+  return texte;
 }
 
 // ---------------------------------------------------------------------------
@@ -197,7 +416,10 @@ export function runDebate(s: GameState, rng: Rng, beats: string[], rang?: CheckR
   let score = s.player.rhetorique * 0.4 + fatigueMalus + tenue + rng.int(-10, 10);
   const lignes: string[] = [];
 
-  for (const b of beats) {
+  // Une sauvegarde d'une version antérieure peut avoir gardé un mini-jeu en
+  // attente sans son intervention : le débat se joue alors sans composition
+  // plutôt que de bloquer la partie sur un bouton qui lève une exception.
+  for (const b of beats ?? []) {
     switch (b) {
       case "frontale":
         score += 8;
@@ -334,7 +556,12 @@ export function resolveElection(s: GameState, rng: Rng): ElectionOutcome {
   return { t1, t2, gagne, recit, sieges };
 }
 
-export function makeCampaign(kind: CampaignState["kind"], opposantId: string, opposantScore: number): CampaignState {
+export function makeCampaign(
+  kind: CampaignState["kind"],
+  opposantId: string,
+  opposantScore: number,
+  ligne?: string
+): CampaignState {
   return {
     kind,
     week: 1,
@@ -345,5 +572,7 @@ export function makeCampaign(kind: CampaignState["kind"], opposantId: string, op
     opposantScore,
     dossierAdversaire: 0,
     round: 1,
+    ligneAdverse: ligne,
+    ripostesJouees: [],
   };
 }

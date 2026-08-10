@@ -64,6 +64,8 @@ export function makeInitialState(seed: number): GameState {
     programmePool: [],
     propos: [],
     vendetta: null,
+    faveursPresse: 0,
+    mandatBase: null,
     europe: etatInitial(),
     pendingCheck: null,
     lastCheck: null,
@@ -150,6 +152,12 @@ export function normalizeState(saved: Partial<GameState> | null | undefined): Ga
   out.programmePool = saved.programmePool ?? [];
   out.propos = saved.propos ?? [];
   out.vendetta = saved.vendetta ?? null;
+
+  // Les relations de presse et le bilan de mandat sont arrivés après coup : une
+  // partie en cours repart sans faveur en réserve, et sans point de départ —
+  // son bilan comparera au pays d'aujourd'hui, faute de mieux.
+  out.faveursPresse = saved.faveursPresse ?? 0;
+  out.mandatBase = saved.mandatBase ?? null;
   out.pendingCheck = saved.pendingCheck ?? null;
   out.lastCheck = saved.lastCheck ?? null;
   out.checkCooldown = saved.checkCooldown ?? 1;

@@ -6,7 +6,7 @@ import { randomSeed, type Rng } from "./engine/rng";
 import { makeCtx } from "./engine/ctx";
 import { getEvent, getCrise } from "./engine/registry";
 import { genBriefing, selectTurnEvents, endOfTurn, updateTrends } from "./engine/turn";
-import { applyCampaignAction, makeCampaign, resolveElection, runDebate } from "./engine/campaign";
+import { applyCampaignAction, ligneAdverse, makeCampaign, resolveElection, riposter, runDebate } from "./engine/campaign";
 import { buildAscension } from "./content/france/ascension";
 import { EVENTS_CAMPAGNE } from "./content/france/campagne";
 import { ACTIONS, CHANCE_OPPORTUNITE, REFORMES, type ActionDef } from "./content/france/actions";
@@ -113,6 +113,11 @@ function appliquerSemaine(s: GameState, actionId: string, segmentId: string | un
   const recit = rang ? appliquerCheck(s, rng, rang) : null;
   const texte = applyCampaignAction(s, rng, actionId, segmentId, rang);
   s.resolution = recit ? `${recit} ${texte}` : texte;
+
+  // L'adversaire joue aussi sa semaine. Sa riposte est comptée dans les mêmes
+  // impacts : le joueur doit voir que la perte de terrain vient d'en face, et
+  // pas d'une dérive anonyme des sondages.
+  riposter(s, rng);
   recordImpacts(s, avant);
 
   // Un événement de campagne peut surgir — la campagne est courte,
@@ -169,6 +174,8 @@ interface Store {
   doAction: (actionId: string, param?: string) => void;
   finishTurn: () => void;
   chooseProgram: (promiseIds: string[]) => void;
+  /** Referme le bilan de mandat et laisse la campagne commencer. */
+  closeBilan: () => void;
   campaignWeek: (actionId: string, segmentId?: string) => void;
   doDebate: (beats: string[]) => void;
   finishElection: () => void;
@@ -305,10 +312,19 @@ function endTurnFlow(s: GameState): void {
       // Un président impopulaire attire un adversaire renforcé — et inversement.
       score += Math.round(Math.max(0, 48 - s.power.popularite) * 0.5);
       score -= Math.round(Math.max(0, s.power.popularite - 55) * 0.3);
-      s.campaign = makeCampaign("reelection", opposantId, score);
+      // Un sortant se juge sur son bilan, pas sur sa cote du moment : les
+      // partis d'en face investissent leur meilleur candidat quand ils sentent
+      // qu'il y a une place à prendre. C'est le grief le mieux fondé qui décide
+      // à la fois de la force de l'adversaire et de sa ligne de campagne.
+      const ligne = ligneAdverse(s);
+      score += Math.round(Math.min(14, (ligne?.force(s) ?? 0) * 0.45));
+      s.campaign = makeCampaign("reelection", opposantId, score, ligne?.theme);
       s.act = "campagne";
       s.phase = "briefing";
       s.press = [];
+      // Le bilan se lit avant d'entrer en campagne : c'est le seul moment où
+      // l'on vous dit franchement où vous en êtes.
+      s.flags["bilan_a_lire"] = true;
       s.log.push({ turn: s.turnCount, text: "La campagne de réélection commence." });
       return;
     }
@@ -579,8 +595,17 @@ export const useGame = create<Store>()(
         if (glissement !== 0) ctx.bord(glissement);
 
         const opposantId = rng.chance(0.6) ? "sallenave" : "andrieu";
-        s.campaign = makeCampaign("presidentielle", opposantId, opposantId === "sallenave" ? 46 : 50);
+        // Face à un candidat, on n'attaque pas un bilan : on attaque ce qu'il
+        // promet, ce qu'il vaut et jusqu'où il va.
+        const ligne = ligneAdverse(s, false);
+        s.campaign = makeCampaign("presidentielle", opposantId, opposantId === "sallenave" ? 46 : 50, ligne?.theme);
         s.rngCalls = rng.state();
+        set({ game: s });
+      },
+
+      closeBilan: () => {
+        const s = clone(get().game!);
+        delete s.flags["bilan_a_lire"];
         set({ game: s });
       },
 
@@ -630,6 +655,17 @@ export const useGame = create<Store>()(
         s.turn = 0;
         s.power.sieges = outcome.sieges;
         s.cohabitation = outcome.sieges < 240;
+        // Le pays tel qu'on vous le remet. Sans ce point de départ, le bilan
+        // de fin de mandat ne serait qu'un relevé de compteurs.
+        s.mandatBase = {
+          mandat: s.mandat,
+          turnCount: s.turnCount,
+          country: { ...s.country },
+          power: { ...s.power },
+          segments: Object.fromEntries(Object.entries(s.segments).map(([id, seg]) => [id, seg.soutien])),
+          derive: s.derive,
+          bord: s.bord,
+        };
         if (s.mandat === 1) {
           s.flags["dette_debut"] = s.country.dette;
           s.log.push({ turn: 0, text: `Élu(e) président(e) de la République avec ${Math.round(outcome.t2.joueur * 10) / 10} % des voix.` });
@@ -662,7 +698,7 @@ export const useGame = create<Store>()(
     },
     {
       name: "mandat-save",
-      version: 4,
+      version: 5,
       // Une partie commencée sur une version antérieure doit rester jouable :
       // on recomplète les champs apparus depuis plutôt que de la jeter.
       migrate: (persisted) => {

@@ -7,6 +7,7 @@ import { bordMeta } from "../engine/bord";
 import { rangMeta } from "../engine/check";
 import { nomCompletDe, nomDe, substituerNoms } from "../engine/noms";
 import { armeDe, ETAPES } from "../engine/vendetta";
+import { faveursPresse, FAVEURS_MAX, relationsPresse, type NiveauPresse } from "../engine/presse";
 import { getEvent } from "../engine/registry";
 import { useGame } from "../store";
 import { RichText } from "./RichText";
@@ -556,6 +557,56 @@ function Entourage({ s }: { s: GameState }) {
 }
 
 // ---------------------------------------------------------------------------
+// Les rédactions : qui vous tient, qui vous doit quelque chose
+// ---------------------------------------------------------------------------
+
+const NIVEAU_PRESSE_META: Record<NiveauPresse, { label: string; tone: string }> = {
+  acquis: { label: "Acquis", tone: "var(--color-good)" },
+  bienveillant: { label: "Bienveillant", tone: "var(--color-env)" },
+  neutre: { label: "Neutre", tone: "var(--color-monde)" },
+  hostile: { label: "Hostile", tone: "var(--color-bad)" },
+};
+
+function Presse({ s }: { s: GameState }) {
+  const relations = relationsPresse(s);
+  const faveurs = faveursPresse(s);
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="label" data-aide="Un journaliste acquis traite autrement, prévient avant, et peut enterrer un sujet.">
+          Les rédactions
+        </span>
+        <span
+          className="flex gap-1 items-center text-[10px]"
+          style={{ color: "var(--color-faint)" }}
+          title="Renvois d'ascenseur en réserve : un journaliste acquis peut étouffer un sujet, une fois par faveur."
+        >
+          {Array.from({ length: FAVEURS_MAX }).map((_, i) => (
+            <span
+              key={i}
+              className="rounded-full"
+              style={{ width: 6, height: 6, background: i < faveurs ? "var(--color-perso)" : "var(--color-line)" }}
+            />
+          ))}
+          faveurs
+        </span>
+      </div>
+      <div className="space-y-1.5">
+        {relations.map((r) => {
+          const meta = NIVEAU_PRESSE_META[r.niveau];
+          return (
+            <div key={r.id} className="card-flat px-2.5 py-1.5 flex items-center justify-between gap-2" style={{ borderLeft: `3px solid ${meta.tone}` }}>
+              <span className="text-[12px] font-semibold truncate">{nomCompletDe(s, r.id)}</span>
+              <Tag tone={meta.tone}>{meta.label}</Tag>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Le panneau
 // ---------------------------------------------------------------------------
 
@@ -703,6 +754,7 @@ export function StatsTabs({ s }: { s: GameState }) {
               ))}
             </div>
           </div>
+          <Presse s={s} />
         </div>
       )}
 

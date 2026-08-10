@@ -489,6 +489,54 @@ export const ACTIONS: ActionDef[] = [
     },
   },
   {
+    id: "off_presse",
+    nom: "Déjeuner off avec la presse",
+    cout: 1,
+    detail: "Six éditorialistes, une salle à manger, rien d'enregistré.",
+    cooldown: 3,
+    icone: "☕",
+    tone: "var(--color-perso)",
+    effects: (c) => {
+      c.adj({ power: { presse: 7 }, hidden: { fatigue: 3 } });
+      c.rel("bec", { loyaute: 7, rancune: -4 });
+      c.rel("ferrand", { loyaute: 2 });
+      // Un off produit rarement un article ; il produit une dette, ce qui vaut mieux.
+      if (c.rng.chance(0.4)) {
+        c.gagnerFaveur();
+        return "Deux heures sans notes, sans caméra, avec les six plumes qui font l'ambiance du pays. Vous racontez un arbitrage difficile en détail — ce que personne ne fait jamais. À la fin, Philippe Bec vous glisse : « Si un jour vous avez besoin de quarante-huit heures, appelez-moi. » On ne dit pas ça deux fois.";
+      }
+      return "Deux heures sans notes, sans caméra. Rien n'en sortira demain, et c'est le but : un off ne se lit pas dans les journaux, il se lit dans le ton des journaux du mois suivant. La profession préfère les présidents qui la fréquentent à ceux qui la craignent.";
+    },
+  },
+  {
+    id: "exclusivite",
+    nom: "Offrir une exclusivité",
+    cout: 1,
+    detail: "Un scoop, à une seule signature. Les autres l'apprendront après.",
+    needParam: "personnage",
+    candidats: (s) => ["ferrand", "bec", "rives"].filter((id) => s.characters[id]?.vivant),
+    cooldown: 3,
+    icone: "✎",
+    tone: "var(--color-perso)",
+    effects: (c, param) => {
+      const id = param ?? "bec";
+      c.rel(id, { loyaute: 14, rancune: -8 });
+      c.gagnerFaveur();
+      c.adj({ power: { presse: 4 }, player: { integrite: -2 } });
+      // Servir quelqu'un, c'est vexer les autres : la faveur a un versant public.
+      for (const autre of ["ferrand", "bec", "rives"]) {
+        if (autre !== id) c.rel(autre, { loyaute: -3, rancune: 3 });
+      }
+      if (id === "ferrand") {
+        return "Vous donnez à Louise Ferrand ce qu'aucun conseiller ne voulait lâcher : l'arbitrage complet, les notes, les noms. Elle publie sans complaisance — mais elle publie ce qui s'est vraiment passé, et pour une fois ça vous sert. Elle vous doit désormais quelque chose qu'elle déteste devoir.";
+      }
+      if (id === "rives") {
+        return "Antoine Rives repart avec l'annonce en primeur pour ses trois chaînes. Il ne remercie pas : il note. Dans son économie, une exclusivité présidentielle est une ligne au bilan, et vous venez de créditer le compte.";
+      }
+      return "Philippe Bec tient son papier avant tout le monde, avec les coulisses et une citation qu'il pourra signer. Les autres rédactions comprennent en le lisant qu'elles ont été doublées. Elles s'en souviendront — lui aussi.";
+    },
+  },
+  {
     id: "conseil_defense",
     nom: "Conseil de défense",
     cout: 1,
@@ -608,6 +656,56 @@ export const ACTIONS: ActionDef[] = [
       c.adj({ power: { presse: -5, popularite: -3 } });
       c.derive(1);
       return "L'offensive tourne au bras de fer, puis à la crispation. Un conseiller suggère de « revoir les accréditations » de deux rédactions. Vous ne dites pas non assez vite, et c'est déjà noté quelque part.";
+    },
+  },
+  {
+    id: "pacte_rives",
+    nom: "L'offre du magnat",
+    cout: 2,
+    detail: "Antoine Rives propose de vous « accompagner ». Le mot est bien choisi.",
+    cond: (s) => s.characters["rives"]?.vivant && s.characters["rives"].loyaute >= 40 && s.power.presse < 58,
+    opportunite: true,
+    rarete: "exceptionnelle",
+    icone: "◈",
+    tone: "var(--color-perso)",
+    effects: (c) => {
+      c.adj({ power: { presse: 20, popularite: 3 }, player: { integrite: -6 } });
+      c.rel("rives", { loyaute: 22 });
+      c.rel("ferrand", { rancune: 14, loyaute: -10 });
+      c.gagnerFaveur(2);
+      c.derive(1);
+      c.dossier("pacte_rives", "Les contreparties du groupe Rives", 32);
+      c.flag("pacte_rives_signe");
+      // Ce qui s'achète se réclame : la note arrivera, et elle sera précise.
+      c.sched("rives_addition", 4, 9, 0.65);
+      c.log("Vous avez passé un accord avec Antoine Rives.");
+      return "Le dîner dure quatre heures et personne ne prononce le mot « accord ». Trois chaînes, deux quotidiens et le premier portail d'information du pays changent de ton en dix jours — pas de propagande, juste des angles, des invités, des ordres de sujets. Louise Ferrand comprend la première et écrit un papier que plus personne ne reprend. Antoine Rives, lui, n'a rien demandé. C'est bien le problème : il demandera plus tard, et il choisira le moment.";
+    },
+  },
+  {
+    id: "sauver_journal",
+    nom: "Sauver un titre de presse",
+    cout: 2,
+    detail: "Un quotidien historique dépose le bilan. L'État peut tout changer.",
+    cond: (s) => s.country.marge >= 22 && s.power.presse < 50,
+    opportunite: true,
+    rarete: "rare",
+    icone: "✑",
+    tone: "var(--color-social)",
+    effects: (c) => {
+      c.adj({ country: { marge: -7 }, power: { presse: 13 } });
+      c.rel("ferrand", { loyaute: 16, rancune: -10 });
+      c.rel("bec", { loyaute: 6 });
+      c.rel("rives", { rancune: 10, loyaute: -8 });
+      c.gagnerFaveur();
+      c.seg("urbains", { soutien: 3 });
+      c.dire(
+        "independance_presse",
+        "Une démocratie qui laisse mourir ses journaux ne meurt pas le même jour, mais elle meurt",
+        "devant la rédaction sauvée"
+      );
+      c.log("Vous avez sauvé un quotidien de la liquidation.");
+      return "Cent quatre-vingts salariés, cent trente ans d'archives, et un repreneur qui voulait le titre pour la marque. Vous montez un fonds de dotation adossé à l'État, sans droit de regard éditorial — la clause est publique, ce qui la rend crédible. Antoine Rives, qui comptait ramasser le titre à la casse, apprend la nouvelle par communiqué. La rédaction sauvée ne vous ménagera pas ; elle ne vous oubliera pas non plus.";
     },
   },
   {

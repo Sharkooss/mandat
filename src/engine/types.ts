@@ -251,6 +251,14 @@ export interface Ctx {
   dossier: (id: string, titre: string, gravite: number) => void;
   /** Ce dossier existe-t-il déjà ? */
   aDossier: (id: string) => Dossier | undefined;
+  /**
+   * Dépense un renvoi d'ascenseur : un journaliste acquis enterre le sujet.
+   * Rend la phrase à insérer dans le récit, ou null si personne ne vous doit
+   * rien — une faveur ne se garantit jamais, le contenu doit prévoir le vide.
+   */
+  faveurPresse: (motif: string) => string | null;
+  /** Un service rendu à une rédaction se stocke : il servira un jour. */
+  gagnerFaveur: (n?: number) => void;
 }
 
 export type PressTone = "hostile" | "neutre" | "favorable" | "servile" | "satirique";
@@ -480,6 +488,28 @@ export interface CampaignState {
   round: 1 | 2;
   scoreT1?: { joueur: number; opposant: number; tiers: number };
   lastAction?: string;
+  /**
+   * La campagne d'en face n'attend pas son tour. Chaque semaine, l'adversaire
+   * frappe là où votre bilan est faible : le thème qu'il a choisi, les coups
+   * déjà portés, et le dernier en date, affiché au joueur.
+   */
+  ligneAdverse?: string;
+  ripostesJouees?: string[];
+  derniereRiposte?: string;
+}
+
+/**
+ * L'état du pays au premier jour d'un mandat. Sert au bilan : sans point de
+ * départ, « chômage 9,2 % » ne dit rien de ce qu'on a fait.
+ */
+export interface MandatBase {
+  mandat: number;
+  turnCount: number;
+  country: CountryStats;
+  power: PowerStats;
+  segments: Record<string, number>;
+  derive: number;
+  bord: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -557,6 +587,10 @@ export interface GameState {
   propos: Propos[];
   /** La rancune qui s'est mise en marche, s'il y en a une. */
   vendetta: Vendetta | null;
+  /** Les renvois d'ascenseur qu'une rédaction acquise vous doit encore. */
+  faveursPresse: number;
+  /** Le pays tel qu'on vous l'a remis, pour pouvoir dire ce qu'il est devenu. */
+  mandatBase: MandatBase | null;
   /** Le second plateau : les capitales, les dossiers, la procureure. */
   europe: EuropeState;
   /** Mini-jeu en attente : la décision est prise mais reste à être tenue. */

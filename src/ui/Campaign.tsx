@@ -7,6 +7,7 @@ import { makeRng } from "../engine/rng";
 import { nomCompletDe } from "../engine/noms";
 import { DeltaChips, EventView, RareteBadge, Tag } from "./components";
 import { RichText } from "./RichText";
+import Bilan from "./Bilan";
 
 const ACTION_META: Record<string, { icone: string; tone: string }> = {
   meeting: { icone: "◎", tone: "var(--color-social)" },
@@ -196,6 +197,9 @@ export default function Campaign({ s }: { s: GameState }) {
   const [segChoice, setSegChoice] = useState("pavillonnaires");
 
   if (!s.campaign) return <Programme s={s} />;
+  // Avant la réélection, on remet au sortant la note que personne n'ose lui
+  // faire pendant le mandat.
+  if (s.flags["bilan_a_lire"]) return <Bilan s={s} />;
   const c = s.campaign;
   const opposant = CAST.some((x) => x.id === c.opposantId) ? nomCompletDe(s, c.opposantId) : "Maryse Cottin";
   const sondage = sondageAffiche(s, makeRng(s.seed + 999, s.rngCalls));
@@ -258,6 +262,11 @@ export default function Campaign({ s }: { s: GameState }) {
           <Tag tone="var(--color-monde)" aide="Ce que vos équipes ont trouvé sur l'adversaire. Utilisable au débat.">
             Dossier {c.dossierAdversaire}/3
           </Tag>
+          {c.ligneAdverse && (
+            <Tag tone="var(--color-bad)" aide="La ligne de campagne d'en face. Il y reviendra chaque semaine.">
+              ⚔ Sa ligne : {c.ligneAdverse}
+            </Tag>
+          )}
           {c.debatFait && <Tag tone="var(--color-faint)">Débat passé</Tag>}
         </div>
       </div>
@@ -278,9 +287,26 @@ export default function Campaign({ s }: { s: GameState }) {
         </div>
       ) : s.resolution ? (
         <div className="card p-6 fade-in">
-          <p className="text-[15px] leading-relaxed pl-4 border-l-2" style={{ borderColor: "var(--accent)" }}>
+          <RichText className="text-[15px] leading-relaxed pl-4 border-l-2" style={{ borderColor: "var(--accent)" }}>
             {s.resolution}
-          </p>
+          </RichText>
+          {/* La campagne d'en face a joué sa semaine, elle aussi. */}
+          {c.derniereRiposte && (
+            <div
+              className="mt-4 rounded-xl px-4 py-3"
+              style={{
+                background: "color-mix(in srgb, var(--color-bad) 10%, transparent)",
+                border: "1px solid color-mix(in srgb, var(--color-bad) 32%, transparent)",
+              }}
+            >
+              <div className="label mb-1.5" style={{ color: "var(--color-bad)" }}>
+                ⚔ La riposte
+              </div>
+              <RichText className="text-[13.5px] leading-relaxed" style={{ color: "var(--color-muted)" }}>
+                {c.derniereRiposte}
+              </RichText>
+            </div>
+          )}
           <DeltaChips deltas={s.lastDeltas} signals={s.lastSignals} check={s.lastCheck} />
           <button className="btn-primary mt-5" onClick={continueAfter}>
             Semaine suivante

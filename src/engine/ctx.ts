@@ -2,6 +2,7 @@
 import type { Rng } from "./rng";
 import { SEGMENTS_DROITE, SEGMENTS_GAUCHE } from "./bord";
 import { ouvrirDossier } from "./europe";
+import { consommerFaveur, gagnerFaveur } from "./presse";
 
 export function clamp(v: number, min = 0, max = 100): number {
   return Math.min(max, Math.max(min, v));
@@ -194,6 +195,14 @@ export function makeCtx(s: GameState, rng: Rng): Ctx {
 
     aDossier(id) {
       return s.europe?.dossiers?.find((d) => d.id === id);
+    },
+
+    faveurPresse(motif) {
+      return consommerFaveur(s, motif, rng);
+    },
+
+    gagnerFaveur(n = 1) {
+      gagnerFaveur(s, n);
     },
   };
   return ctx;

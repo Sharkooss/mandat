@@ -1,6 +1,7 @@
 import type { GameEvent, GameState } from "../../engine/types";
 import { nomCompletDe, nomDe } from "../../engine/noms";
 import { armeDe, desamorcer } from "../../engine/vendetta";
+import { faveursPresse, souffleur } from "../../engine/presse";
 
 // ---------------------------------------------------------------------------
 // La mémoire longue du pays.
@@ -277,6 +278,23 @@ export const EVENTS_MEMOIRE: GameEvent[] = [
           c.flag("vendetta_blinde");
           c.adj({ power: { justice: 5 }, hidden: { fatigue: 6 } });
           return `Cellule dédiée, avocats, contre-dossier, éléments de langage prêts pour les six scénarios les plus probables. Vous ne pouvez pas empêcher le coup ; vous pouvez décider de l'état dans lequel vous le recevrez. C'est un travail de six semaines qui ne produira jamais aucune image.`;
+        },
+      },
+      {
+        id: "etouffer_publication",
+        label: "Appeler votre ami à la rédaction",
+        detail: "Un livre qui ne trouve pas d'écho n'est qu'un livre. Coûte un renvoi d'ascenseur.",
+        // Le croisement des deux systèmes : une rédaction cultivée pendant
+        // cinq ans sert exactement à ce moment-là, et à rien d'autre.
+        cond: (s) => faveursPresse(s) > 0 && !!souffleur(s) && armeDe(s.vendetta!.id) === "publication",
+        effects: (c) => {
+          const v = c.s.vendetta!;
+          const recit = c.faveurPresse("la sortie du livre");
+          desamorcer(c.s, 12);
+          c.adj({ player: { cynisme: 5, integrite: -3 } });
+          c.rel(v.id, { rancune: 8 });
+          c.log(`Le livre de ${nomCompletDe(c.s, v.id)} est sorti dans le silence.`);
+          return `${recit ?? "Un appel suffit."} Le livre paraît à la date prévue, en librairie, avec sa bande rouge. Aucun plateau, aucune matinale, aucune critique : trois cents pages qui existent et que personne n'ouvre. ${nomCompletDe(c.s, v.id)} comprend en quarante-huit heures ce qui s'est passé et à qui il le doit. Vous avez éteint le feu et gardé le pyromane, en pire.`;
         },
       },
       {

@@ -6,6 +6,7 @@ import { bordMeta } from "./bord";
 import { nomCompletDe } from "./noms";
 import { progresserVendetta } from "./vendetta";
 import { alliees, driftEurope, hostiles, majorite } from "./europe";
+import { adoucirUne, driftPresse, relationsPresse } from "./presse";
 
 // ---------------------------------------------------------------------------
 // Symptômes : la seule fenêtre du joueur sur les jauges cachées.
@@ -144,6 +145,11 @@ function driftGauges(s: GameState, rng: Rng): void {
 
   h.paranoia = clamp(h.paranoia + s.derive * 0.35 - 0.8);
 
+  // La presse a un climat de fond, et il se travaille. Sans ce rappel vers la
+  // cible, la bienveillance ne faisait que descendre : un mandat entier finissait
+  // toujours par se jouer contre les rédactions, quoi qu'on fasse pour elles.
+  driftPresse(s);
+
   // La ligne politique a un coût structurel. Une ligne marquée polarise le
   // pays ; une ligne extrême lui inflige les maux propres à son camp.
   const ecart = Math.max(0, Math.abs(s.bord) - 3);
@@ -204,6 +210,15 @@ const UNES_NEUTRES = [
 const UNES_FAVORABLES = [
   "« Le pari tient — pour l'instant » — L'Écho Républicain",
   "« Un cap, enfin » — Le Matin",
+  "« La méthode commence à payer » — L'Observateur, en pages intérieures",
+  "« Ce que personne n'avait vu venir » — Le Quotidien National, dossier de six pages",
+  "« On s'est trompé sur lui » — éditorial signé, ce qui est plus rare qu'une bonne nouvelle",
+];
+/** Quand une rédaction vous est acquise, ça ne se lit pas comme un hasard. */
+const UNES_AMIES = [
+  "« L'ENTRETIEN EXCLUSIF » — quatorze pages, photo en pied, aucune question sur le reste",
+  "« Le portrait qu'on n'attendait pas » — une plume amie, et ça se sent dès le chapeau",
+  "« Les chiffres qu'on ne vous a pas montrés » — la contre-enquête, pour une fois dans votre sens",
 ];
 const UNES_SERVILES = [
   "« LA FRANCE AVANCE, SEREINE » — communiqué repris par six quotidiens",
@@ -231,6 +246,13 @@ export function genBriefing(s: GameState, rng: Rng): void {
   // Une une imposée par un événement de fin de semestre passe avant tout le
   // reste : elle est consommée une seule fois.
   const imposee = s.flags["une_speciale"];
+  const acquis = relationsPresse(s).filter((r) => r.niveau === "acquis").length;
+  // Un président impopulaire reste un président qu'on éreinte : ce n'est pas
+  // le seuil qui protège, c'est la plume amie — et elle ne protège pas à tous
+  // les coups. Une presse qu'on a cultivée doit rester un pari, pas un abri.
+  const hostile = s.power.presse < 33 || (s.power.popularite < 32 && s.power.presse < 48);
+  const favorable = s.power.presse >= 68 || (s.power.presse >= 56 && s.power.popularite > 42);
+  let adoucie: string | null = null;
   if (typeof imposee === "string") {
     une = imposee;
     tone = (s.flags["une_speciale_ton"] as PressItem["tone"]) ?? "hostile";
@@ -239,17 +261,20 @@ export function genBriefing(s: GameState, rng: Rng): void {
   } else if (s.derive >= 8) {
     une = rng.pick(UNES_SERVILES);
     tone = "servile";
-  } else if (s.power.presse < 35 || s.power.popularite < 32) {
-    une = rng.pick(UNES_HOSTILES);
-    tone = "hostile";
-  } else if (s.power.presse > 62 && s.power.popularite > 48) {
-    une = rng.pick(UNES_FAVORABLES);
+  } else if (hostile) {
+    // Le filet passif : un journaliste acquis n'attend pas qu'on lui demande.
+    adoucie = adoucirUne(s, rng);
+    une = adoucie ? rng.pick(UNES_NEUTRES) : rng.pick(UNES_HOSTILES);
+    tone = adoucie ? "neutre" : "hostile";
+  } else if (favorable) {
+    une = rng.pick(acquis >= 2 ? UNES_AMIES : UNES_FAVORABLES);
     tone = "favorable";
   } else {
     une = rng.pick(UNES_NEUTRES);
     tone = "neutre";
   }
   s.press.push({ kind: "une", text: une, tone });
+  if (adoucie) s.press.push({ kind: "echo", text: adoucie, tone: "favorable" });
 
   // L'état du pays, tel qu'on vous le rapporte (biaisé).
   s.press.push({
