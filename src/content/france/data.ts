@@ -163,28 +163,28 @@ export const POIDS_RARETE: Record<Rarete, number> = {
 // ---------------------------------------------------------------------------
 
 export const CAST: CharacterDef[] = [
-  { id: "rochefort", nom: "Hélène Rochefort", role: "Première ministre", camp: "gouvernement", loyaute: 65, ambition: 55, rancune: 5 },
-  { id: "mazeau", nom: "Franck Mazeau", role: "Ministre de l'Intérieur", camp: "gouvernement", biais: "minimise l'agitation sociale (~−20 % sur les chiffres réels)", loyaute: 60, ambition: 60, rancune: 10 },
-  { id: "danglade", nom: "Cyril Danglade", role: "Ministre de l'Économie", camp: "gouvernement", biais: "prévisions systématiquement optimistes", loyaute: 70, ambition: 40, rancune: 0 },
-  { id: "verdier", nom: "Général Paul Verdier", role: "Chef d'état-major", camp: "gouvernement", biais: "surestime la menace extérieure", loyaute: 55, ambition: 45, rancune: 5 },
-  { id: "ternay", nom: "Yves Ternay", role: "Directeur des services intérieurs", camp: "gouvernement", biais: "ne ment jamais — mais choisit ce qu'il vous montre", loyaute: 60, ambition: 25, rancune: 0 },
-  { id: "roze", nom: "Camille Roze", role: "Directrice de la communication", camp: "gouvernement", loyaute: 85, ambition: 25, rancune: 0 },
-  { id: "espitalier", nom: "Jean-Marc Espitalier", role: "Trésorier du parti", camp: "parti", loyaute: 70, ambition: 30, rancune: 5 },
-  { id: "delval", nom: "Sacha Delval", role: "Secrétaire général du parti", camp: "parti", loyaute: 60, ambition: 70, rancune: 5 },
-  { id: "sallenave", nom: "Victor Sallenave", role: "Chef de l'opposition tribunicienne", camp: "opposition", loyaute: 0, ambition: 90, rancune: 40 },
-  { id: "andrieu", nom: "Claire Andrieu", role: "Opposante de gouvernement", camp: "opposition", loyaute: 10, ambition: 75, rancune: 10 },
-  { id: "rives", nom: "Antoine Rives", role: "Magnat des médias", camp: "presse", loyaute: 40, ambition: 65, rancune: 10 },
-  { id: "ferrand", nom: "Louise Ferrand", role: "Journaliste d'investigation, « Le Fil »", camp: "presse", loyaute: 0, ambition: 50, rancune: 10 },
-  { id: "bec", nom: "Philippe Bec", role: "Éditorialiste", camp: "presse", loyaute: 30, ambition: 40, rancune: 0 },
-  { id: "kervella", nom: "Bruno Kervella", role: "Syndicat contestataire", camp: "corps", loyaute: 5, ambition: 55, rancune: 25 },
-  { id: "belkacem", nom: "Nadia Belkacem", role: "Syndicat réformiste", camp: "corps", loyaute: 35, ambition: 45, rancune: 5 },
-  { id: "charvet", nom: "Édouard Charvet", role: "Président du patronat", camp: "corps", loyaute: 45, ambition: 40, rancune: 0 },
-  { id: "quesnel", nom: "Robert Quesnel", role: "Président du Sénat", camp: "institutions", loyaute: 40, ambition: 30, rancune: 10 },
-  { id: "alberti", nom: "Denise Alberti", role: "Présidente du Conseil constitutionnel", camp: "institutions", loyaute: 30, ambition: 10, rancune: 0 },
-  { id: "conjoint", nom: "—", role: "Conjoint(e)", camp: "intime", loyaute: 90, ambition: 35, rancune: 0 },
-  { id: "bensalah", nom: "Karim Bensalah", role: "Ami d'enfance", camp: "intime", loyaute: 95, ambition: 5, rancune: 0 },
-  { id: "manin", nom: "Dr Estelle Manin", role: "Médecin personnel", camp: "intime", loyaute: 90, ambition: 10, rancune: 0 },
-  { id: "weiss", nom: "Chancelier Weiss", role: "Chancelier allemand", camp: "etranger", loyaute: 40, ambition: 50, rancune: 0 },
+  { id: "rochefort", nom: "Hélène Rochefort", genre: "f", role: "Première ministre", camp: "gouvernement", loyaute: 65, ambition: 55, rancune: 5 },
+  { id: "mazeau", nom: "Franck Mazeau", genre: "m", role: "Ministre de l'Intérieur", camp: "gouvernement", biais: "minimise l'agitation sociale (~−20 % sur les chiffres réels)", loyaute: 60, ambition: 60, rancune: 10 },
+  { id: "danglade", nom: "Cyril Danglade", genre: "m", role: "Ministre de l'Économie", camp: "gouvernement", biais: "prévisions systématiquement optimistes", loyaute: 70, ambition: 40, rancune: 0 },
+  { id: "verdier", nom: "Paul Verdier", genre: "m", titre: "général", role: "Chef d'état-major", camp: "gouvernement", biais: "surestime la menace extérieure", loyaute: 55, ambition: 45, rancune: 5 },
+  { id: "ternay", nom: "Yves Ternay", genre: "m", role: "Directeur des services intérieurs", camp: "gouvernement", biais: "ne ment jamais — mais choisit ce qu'il vous montre", loyaute: 60, ambition: 25, rancune: 0 },
+  { id: "roze", nom: "Camille Roze", genre: "f", role: "Directrice de la communication", camp: "gouvernement", loyaute: 85, ambition: 25, rancune: 0 },
+  { id: "espitalier", nom: "Jean-Marc Espitalier", genre: "m", role: "Trésorier du parti", camp: "parti", loyaute: 70, ambition: 30, rancune: 5 },
+  { id: "delval", nom: "Sacha Delval", genre: "m", role: "Secrétaire général du parti", camp: "parti", loyaute: 60, ambition: 70, rancune: 5 },
+  { id: "sallenave", nom: "Victor Sallenave", genre: "m", role: "Chef de l'opposition tribunicienne", camp: "opposition", loyaute: 0, ambition: 90, rancune: 40 },
+  { id: "andrieu", nom: "Claire Andrieu", genre: "f", role: "Opposante de gouvernement", camp: "opposition", loyaute: 10, ambition: 75, rancune: 10 },
+  { id: "rives", nom: "Antoine Rives", genre: "m", role: "Magnat des médias", camp: "presse", loyaute: 40, ambition: 65, rancune: 10 },
+  { id: "ferrand", nom: "Louise Ferrand", genre: "f", role: "Journaliste d'investigation, « Le Fil »", camp: "presse", loyaute: 0, ambition: 50, rancune: 10 },
+  { id: "bec", nom: "Philippe Bec", genre: "m", role: "Éditorialiste", camp: "presse", loyaute: 30, ambition: 40, rancune: 0 },
+  { id: "kervella", nom: "Bruno Kervella", genre: "m", role: "Syndicat contestataire", camp: "corps", loyaute: 5, ambition: 55, rancune: 25 },
+  { id: "belkacem", nom: "Nadia Belkacem", genre: "f", registre: "maghreb", role: "Syndicat réformiste", camp: "corps", loyaute: 35, ambition: 45, rancune: 5 },
+  { id: "charvet", nom: "Édouard Charvet", genre: "m", role: "Président du patronat", camp: "corps", loyaute: 45, ambition: 40, rancune: 0 },
+  { id: "quesnel", nom: "Robert Quesnel", genre: "m", role: "Président du Sénat", camp: "institutions", loyaute: 40, ambition: 30, rancune: 10 },
+  { id: "alberti", nom: "Denise Alberti", genre: "f", role: "Présidente du Conseil constitutionnel", camp: "institutions", loyaute: 30, ambition: 10, rancune: 0 },
+  { id: "conjoint", nom: "—", genre: "f", role: "Conjoint(e)", camp: "intime", loyaute: 90, ambition: 35, rancune: 0 },
+  { id: "bensalah", nom: "Karim Bensalah", genre: "m", registre: "maghreb", alias: ["Karim"], role: "Ami d'enfance", camp: "intime", loyaute: 95, ambition: 5, rancune: 0 },
+  { id: "manin", nom: "Estelle Manin", genre: "f", titre: "Dr", role: "Médecin personnel", camp: "intime", loyaute: 90, ambition: 10, rancune: 0 },
+  { id: "weiss", nom: "Weiss", genre: "m", registre: "allemagne", titre: "chancelier", role: "Chancelier allemand", camp: "etranger", loyaute: 40, ambition: 50, rancune: 0 },
 ];
 
 /** Étiquette courte affichée en tag coloré dans le panneau Entourage. */
@@ -357,7 +357,40 @@ export const PRESIDENTS: PresidentRef[] = [
   { nom: "Macron", annees: 8, croissance: 1.2, chomage: 7.8, detteDelta: 15 },
 ];
 
-// Prénoms crédibles pour la génération aléatoire
-export const PRENOMS_F = ["Claire", "Isabelle", "Nathalie", "Sophie", "Anne", "Valérie", "Élise", "Margot", "Aurore", "Delphine"];
-export const PRENOMS_M = ["Julien", "Thomas", "Marc", "Antoine", "Pierre", "Nicolas", "Étienne", "Vincent", "Laurent", "Rémi"];
-export const NOMS = ["Vasseur", "Morel", "Lambert", "Girard", "Fontaine", "Roussel", "Chevalier", "Berthier", "Lemoine", "Perrin", "Guilloux", "Santelli", "Kerbrat", "Delorme"];
+// ---------------------------------------------------------------------------
+// Les viviers de noms. Tout le casting est rebaptisé à chaque partie : les
+// fonctions, les biais et les rancunes ne bougent pas, mais on ne retrouve
+// jamais les mêmes visages. Les patronymes sont volontairement dépourvus
+// d'homonymes courants — `RichText` les repère dans les textes, et un nom qui
+// est aussi un nom commun se met à clignoter au milieu des phrases.
+// ---------------------------------------------------------------------------
+
+export const PRENOMS_F = [
+  "Claire", "Isabelle", "Nathalie", "Sophie", "Anne", "Valérie", "Élise", "Margot", "Aurore", "Delphine",
+  "Camille", "Hélène", "Béatrice", "Céline", "Diane", "Émilie", "Florence", "Gabrielle", "Hortense", "Inès",
+  "Julie", "Marion", "Noémie", "Pauline", "Sandrine", "Véronique", "Agnès", "Blandine", "Charlotte", "Estelle",
+  "Fanny", "Geneviève", "Irène", "Justine", "Louise", "Manon", "Nadège", "Ophélie", "Sylvie", "Armelle",
+];
+export const PRENOMS_M = [
+  "Julien", "Thomas", "Marc", "Antoine", "Pierre", "Nicolas", "Étienne", "Vincent", "Laurent", "Rémi",
+  "Olivier", "Bertrand", "Guillaume", "Fabien", "Damien", "Maxime", "Sébastien", "Arnaud", "Clément", "Baptiste",
+  "Cédric", "Denis", "Édouard", "Franck", "Gaspard", "Henri", "Jérôme", "Loïc", "Mathieu", "Patrice",
+  "Quentin", "Raphaël", "Stéphane", "Victor", "Xavier", "Yann", "Alban", "Corentin", "Aurélien", "Benoît",
+];
+export const NOMS = [
+  "Vasseur", "Morel", "Lambert", "Girard", "Roussel", "Berthier", "Lemoine", "Perrin", "Guilloux", "Santelli",
+  "Kerbrat", "Delorme", "Aubry", "Cordier", "Delaunay", "Estève", "Faivre", "Gauthier", "Hamon", "Jourdan",
+  "Maillard", "Orsini", "Pasquier", "Rambaud", "Tanguy", "Aubertin", "Béranger", "Dumesnil", "Grangier", "Cazeneuve",
+  "Sabatier", "Bergeron", "Chastel", "Dorval", "Faucher", "Galtier", "Hébrard", "Imbert", "Jaubert", "Lassalle",
+  "Mercadier", "Ollivier", "Raynaud", "Salvat", "Thibault", "Vergne", "Ancelin", "Bouvier", "Darrieux", "Gaillard",
+  "Joubert", "Lauret", "Monnier", "Poitevin", "Reboul", "Sénéchal", "Turpin", "Ledoux", "Beauvais", "Chambon",
+  "Dutertre", "Fresnay", "Lestrade", "Marsac", "Solignac", "Vaugeois", "Coquelin", "Larcher", "Miquel", "Nogaret",
+  "Pineau", "Revel", "Sorel", "Tourreau", "Valdenaire", "Fabiani", "Casanova", "Pieri", "Alberti", "Ferrandi",
+];
+
+/** Les personnages qui ne viennent pas du même monde gardent leur texture. */
+export const PRENOMS_M_ALLEMAGNE = ["Klaus", "Dietrich", "Helmut", "Reinhard", "Matthias", "Jürgen", "Wolfgang", "Andreas", "Stefan", "Lothar", "Gerhard", "Konrad"];
+export const NOMS_ALLEMAGNE = ["Weiss", "Brandt", "Kessler", "Hofmann", "Lindner", "Reuter", "Bergmann", "Kuhn", "Steinbach", "Kleinert", "Zimmerling", "Naumann"];
+export const PRENOMS_M_MAGHREB = ["Karim", "Samir", "Rachid", "Mehdi", "Yacine", "Farid", "Nabil", "Sofiane", "Tarek", "Amine"];
+export const PRENOMS_F_MAGHREB = ["Nadia", "Leïla", "Samira", "Yasmina", "Amina", "Farida", "Sonia", "Malika", "Nour", "Djamila"];
+export const NOMS_MAGHREB = ["Bensalah", "Belkacem", "Haddad", "Benali", "Cherif", "Mansouri", "Ziani", "Boukhari", "Amrani", "Slimani", "Ouazani", "Taleb"];

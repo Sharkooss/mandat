@@ -10,6 +10,7 @@ import {
   CONVICTIONS,
 } from "../content/france/data";
 import { makeRng, type Rng } from "./rng";
+import { genererNoms } from "./noms";
 
 export function makeInitialState(seed: number): GameState {
   const characters: GameState["characters"] = {};
@@ -20,9 +21,13 @@ export function makeInitialState(seed: number): GameState {
   for (const seg of SEGMENTS) {
     segments[seg.id] = { id: seg.id, soutien: seg.soutien, participation: seg.participation };
   }
+  // Le casting est rebaptisé avant tout le reste : le premier écran de
+  // l'ascension peut déjà citer un ministre par son nom.
+  const rng = makeRng(seed);
+  const castNames = genererNoms(rng);
   return {
     seed,
-    rngCalls: 0,
+    rngCalls: rng.state(),
     act: "creation",
     phase: "briefing",
     turn: 0,
@@ -52,6 +57,7 @@ export function makeInitialState(seed: number): GameState {
     pc: 3,
     pcMax: 3,
     characters,
+    castNames,
     segments,
     promises: [],
     programmePool: [],
@@ -102,6 +108,10 @@ export function normalizeState(saved: Partial<GameState> | null | undefined): Ga
   out.hidden = { ...base.hidden, ...(saved.hidden ?? {}) };
   out.bio = { ...base.bio, ...(saved.bio ?? {}) };
   out.characters = { ...base.characters, ...(saved.characters ?? {}) };
+  // Une partie d'avant le tirage des noms recupère ceux que sa graine aurait
+  // produits : les textes déjà archivés portent les noms de référence, et la
+  // substitution les rattrape à l'affichage.
+  out.castNames = saved.castNames ?? base.castNames;
   out.segments = { ...base.segments, ...(saved.segments ?? {}) };
   out.flags = saved.flags ?? {};
   out.bord = saved.bord ?? 0;

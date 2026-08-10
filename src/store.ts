@@ -13,6 +13,7 @@ import { ACTIONS, REFORMES } from "./content/france/actions";
 import { buildEnding, checkEndings, type EndingCause } from "./content/france/fins";
 import { computeDeltas, computeSignals, pushLedger, snapshot } from "./engine/deltas";
 import { appliquerCheck, planActionCheck, planCampagneCheck, planChoixCheck, planDebatCheck } from "./engine/check";
+import { nomDe } from "./engine/noms";
 import {
   PRENOMS_F,
   PRENOMS_M,
@@ -30,17 +31,19 @@ import {
 } from "./content/france/data";
 
 const SEG_NOMS: Record<string, string> = Object.fromEntries(SEGMENTS.map((s) => [s.id, s.nom]));
-const NOMS = {
-  segments: SEG_NOMS,
-  personnages: Object.fromEntries(CAST.map((c) => [c.id, c.nom])),
-  promesses: Object.fromEntries(PROMESSES.map((p) => [p.id, p.label])),
-};
+const NOMS_PROMESSES = Object.fromEntries(PROMESSES.map((p) => [p.id, p.label]));
 
 /** Calcule les variations d'une décision et les inscrit au journal des impacts. */
 function recordImpacts(s: GameState, avant: ReturnType<typeof snapshot>): void {
   s.lastDeltas = computeDeltas(avant, s, SEG_NOMS);
   s.lastSignals = computeSignals(avant, s);
-  pushLedger(avant, s, s.lastDeltas, s.lastSignals, NOMS);
+  // Les noms du casting sont propres à la partie : on les relit à chaque fois
+  // plutôt que de figer ceux du contenu au chargement du module.
+  pushLedger(avant, s, s.lastDeltas, s.lastSignals, {
+    segments: SEG_NOMS,
+    personnages: Object.fromEntries(CAST.map((c) => [c.id, nomDe(s, c.id)])),
+    promesses: NOMS_PROMESSES,
+  });
 }
 
 /**
@@ -307,8 +310,12 @@ export const useGame = create<Store>()(
       submitBio: (bio) => {
         const s = clone(get().game!);
         const rng = rngOf(s);
+        // Le casting a déjà été baptisé : le président ne peut pas porter le
+        // nom de son propre ministre de l'Intérieur.
+        const prisParLeCasting = new Set(Object.values(s.castNames).map((n) => n.nom));
+        const nomsLibres = NOMS_FAMILLE.filter((n) => !prisParLeCasting.has(n));
         if (!bio.prenom) bio.prenom = rng.pick(bio.genre === "f" ? PRENOMS_F : PRENOMS_M);
-        if (!bio.nom) bio.nom = rng.pick(NOMS_FAMILLE);
+        if (!bio.nom) bio.nom = rng.pick(nomsLibres.length > 0 ? nomsLibres : NOMS_FAMILLE);
         if (!bio.conjointPrenom) bio.conjointPrenom = rng.pick(bio.genre === "f" ? PRENOMS_M : PRENOMS_F);
         applyBio(s, bio);
         s.act = "ascension";

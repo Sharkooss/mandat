@@ -574,7 +574,7 @@ export const EVENTS_MANDAT: GameEvent[] = [
         effects: (c) => {
           c.adj({ country: { prestige: 6 }, hidden: { fatigue: 6 } });
           c.sched("monde_escalade", 4, 12, 0.15);
-          c.log("Vous avez porté une médiation internationale dans la guerre des Deux Rives.");
+          c.log("Vous avez porté une médiation internationale dans la guerre des Deux Fleuves.");
           return "Trois sommets, des nuits sans sommeil, un cessez-le-feu fragile qui porte le nom d'une ville française. Il tiendra ce qu'il tiendra ; le carnet diplomatique de la France, lui, vient de se réévaluer.";
         },
       },

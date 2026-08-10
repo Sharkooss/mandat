@@ -1,4 +1,5 @@
 ﻿import type { GameState } from "../engine/types";
+import { substituerNoms } from "../engine/noms";
 import { useGame } from "../store";
 import { Tag } from "./components";
 
@@ -32,6 +33,9 @@ export default function Final({ s }: { s: GameState }) {
   const abandon = useGame((g) => g.abandon);
   const e = s.ending!;
   const tone = RARETE_TONE[e.rarete] ?? "var(--color-r-commune)";
+  // La notice cite les ministres, les rivaux, les journalistes : elle doit
+  // parler des gens de cette partie-ci.
+  const N = (t: string) => substituerNoms(t, s);
 
   const downloadCard = () => {
     const cv = document.createElement("canvas");
@@ -82,7 +86,7 @@ export default function Final({ s }: { s: GameState }) {
           <div className="press-une text-5xl mb-8">L'Hiver</div>
           {e.notice.map((p, i) => (
             <p key={i} className="text-[13px] mb-4 leading-relaxed" style={{ color: "var(--color-faint)" }}>
-              {p}
+              {N(p)}
             </p>
           ))}
           <div className="mb-8">
@@ -101,7 +105,7 @@ export default function Final({ s }: { s: GameState }) {
       {/* 1. La une du lendemain */}
       <div className="p-7 mb-4 text-center rounded-2xl" style={{ background: "#ece7db", color: "#14151f" }}>
         <div className="text-[10px] uppercase tracking-[0.35em] mb-3 opacity-55">Le lendemain — édition spéciale</div>
-        <div className="press-une text-[26px] leading-tight">{e.une}</div>
+        <div className="press-une text-[26px] leading-tight">{N(e.une)}</div>
       </div>
 
       {/* La carte de fin */}
@@ -118,7 +122,7 @@ export default function Final({ s }: { s: GameState }) {
           <Tag tone="var(--color-perso)">{Math.max(0, Math.round(s.turnCount / 2))} ans au pouvoir</Tag>
         </div>
         <p className="text-[14px] italic mb-5 max-w-lg mx-auto" style={{ color: "var(--color-muted)" }}>
-          {e.epitaphe}
+          {N(e.epitaphe)}
         </p>
         <div className="flex gap-2 justify-center flex-wrap">
           <button className="btn-primary" onClick={downloadCard}>
@@ -152,7 +156,7 @@ export default function Final({ s }: { s: GameState }) {
           </div>
         </div>
         <p className="text-[13px] italic mt-4 pt-4 border-t" style={{ color: "var(--color-muted)", borderColor: "var(--color-line-soft)" }}>
-          {e.verdict.jugement}
+          {N(e.verdict.jugement)}
         </p>
       </div>
 
@@ -181,7 +185,7 @@ export default function Final({ s }: { s: GameState }) {
         <div className="label mb-3">La notice — ce que l'encyclopédie retiendra</div>
         {e.notice.map((p, i) => (
           <p key={i} className="text-[14px] leading-relaxed mb-3" style={{ color: "color-mix(in srgb, var(--color-text) 85%, transparent)" }}>
-            {p}
+            {N(p)}
           </p>
         ))}
       </div>

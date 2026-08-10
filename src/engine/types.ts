@@ -54,9 +54,25 @@ export interface HiddenStats {
 
 export interface CharacterDef {
   id: string;
+  /**
+   * Le nom de référence, celui qu'emploient les textes du contenu. Il sert de
+   * gabarit : chaque partie le remplace par un nom tiré au sort, et la
+   * substitution se fait à l'affichage.
+   */
   nom: string;
   role: string;
   camp: "gouvernement" | "parti" | "opposition" | "presse" | "corps" | "institutions" | "intime" | "etranger";
+  /**
+   * Le genre ne change jamais : les rôles et les accords sont écrits en dur
+   * dans le contenu (« la Première ministre », « elle s'est inclinée »).
+   */
+  genre: "f" | "m";
+  /** Le vivier de noms dans lequel on tire — tout le monde n'est pas d'ici. */
+  registre?: "france" | "allemagne" | "maghreb";
+  /** Titre accolé au nom dans les textes (« général », « Dr », « chancelier »). */
+  titre?: string;
+  /** Formes supplémentaires employées dans les textes (prénom seul, surnom). */
+  alias?: string[];
   biais?: string; // description du biais d'information
   loyaute: number;
   ambition: number;
@@ -380,6 +396,8 @@ export interface GameState {
   pc: number; // capital politique du tour
   pcMax: number;
   characters: Record<string, CharacterState>;
+  /** Les noms tirés pour cette partie — le casting change de visage à chaque fois. */
+  castNames: Record<string, { prenom: string; nom: string }>;
   segments: Record<string, SegmentState>;
   promises: PromiseState[];
   /** Les mesures que la campagne vous propose — jamais le vivier entier. */

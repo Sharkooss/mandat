@@ -240,7 +240,7 @@ function noticeBio(s: GameState, cause: EndingCause, une: string): string[] {
   const monde: string[] = [];
   if (s.flags["sahel_retrait"]) monde.push("Le retrait du Sahel referma soixante ans de présence militaire française — décision douloureuse dont l'évaluation divise encore.");
   if (s.flags["sahel_enlisement"]) monde.push("L'enlisement sahélien coûta des vies et des milliards sans qu'aucun « état final » n'ait jamais été défini.");
-  if (s.log.some((l) => l.text.includes("médiation"))) monde.push("Sa médiation dans la guerre des Deux Rives valut à la diplomatie française l'un de ses derniers grands succès.");
+  if (s.log.some((l) => l.text.includes("médiation"))) monde.push("Sa médiation dans la guerre des Deux Fleuves valut à la diplomatie française l'un de ses derniers grands succès.");
   if (monde.length === 0) monde.push(`À l'international, la France maintint son rang (prestige évalué à ${s.country.prestige}/100 par les chancelleries) sans initiative majeure.`);
   p.push(monde.join(" "));
 
@@ -542,7 +542,7 @@ export const EVENTS_FINS: GameEvent[] = [
     once: true,
     weight: 0,
     texte:
-      "La guerre des Deux Rives a débordé : un incident a touché un allié de l'OTAN, l'article 5 est invoqué à demi-mot, et une puissance nucléaire adverse vient de placer ses forces en alerte. La France est dans la chaîne de décision. Chaque cran offre encore une porte de sortie. Chaque porte coûte plus cher que la précédente.",
+      "La guerre des Deux Fleuves a débordé : un incident a touché un allié de l'OTAN, l'article 5 est invoqué à demi-mot, et une puissance nucléaire adverse vient de placer ses forces en alerte. La France est dans la chaîne de décision. Chaque cran offre encore une porte de sortie. Chaque porte coûte plus cher que la précédente.",
     choices: [
       {
         id: "desescalade",

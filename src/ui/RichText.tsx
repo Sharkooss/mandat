@@ -1,5 +1,6 @@
 import { Fragment, useMemo } from "react";
 import { CAST } from "../content/france/data";
+import { aliasAffiches, substituerNoms } from "../engine/noms";
 import { useGame } from "../store";
 
 // ---------------------------------------------------------------------------
@@ -19,39 +20,6 @@ const CAMP_TONE: Record<string, string> = {
   etranger: "var(--color-eco)",
 };
 
-/**
- * Alias par personnage. On évite volontairement les patronymes ambigus :
- * « Rives » apparaît dans « la guerre des Deux Rives », « Bec » est un mot
- * courant — ceux-là ne se reconnaissent qu'au nom complet.
- *
- * Le conjoint a une liste vide : son nom de fiche est un tiret cadratin, et
- * son vrai prénom est ajouté à part une fois la biographie établie.
- */
-const ALIAS: Record<string, string[]> = {
-  conjoint: [],
-  rochefort: ["Hélène Rochefort", "Rochefort"],
-  mazeau: ["Franck Mazeau", "Mazeau"],
-  danglade: ["Cyril Danglade", "Danglade"],
-  verdier: ["général Paul Verdier", "Général Paul Verdier", "Paul Verdier", "Verdier"],
-  ternay: ["Yves Ternay", "Ternay"],
-  roze: ["Camille Roze", "Roze"],
-  espitalier: ["Jean-Marc Espitalier", "Espitalier"],
-  delval: ["Sacha Delval", "Delval"],
-  sallenave: ["Victor Sallenave", "Sallenave"],
-  andrieu: ["Claire Andrieu", "Andrieu"],
-  rives: ["Antoine Rives"],
-  ferrand: ["Louise Ferrand", "Ferrand"],
-  bec: ["Philippe Bec"],
-  kervella: ["Bruno Kervella", "Kervella"],
-  belkacem: ["Nadia Belkacem", "Belkacem"],
-  charvet: ["Édouard Charvet", "Charvet"],
-  quesnel: ["Robert Quesnel", "Quesnel"],
-  alberti: ["Denise Alberti", "Alberti"],
-  bensalah: ["Karim Bensalah", "Bensalah", "Karim"],
-  manin: ["Dr Estelle Manin", "Estelle Manin", "Manin"],
-  weiss: ["chancelier Weiss", "Chancelier Weiss", "Weiss"],
-};
-
 function escape(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -68,12 +36,12 @@ function aliasValide(a: string): boolean {
   return (a.match(/\p{L}/gu)?.length ?? 0) >= 2;
 }
 
-export function tokenize(texte: string, conjointPrenom: string): Token[] {
-  const entrees: { alias: string; id: string }[] = [];
-  for (const c of CAST) {
-    for (const a of ALIAS[c.id] ?? [c.nom]) if (aliasValide(a)) entrees.push({ alias: a, id: c.id });
-  }
-  if (aliasValide(conjointPrenom)) entrees.push({ alias: conjointPrenom, id: "conjoint" });
+/**
+ * Découpe un texte **déjà substitué** : les noms qu'on y cherche sont ceux
+ * tirés pour la partie, pas ceux écrits dans le contenu.
+ */
+export function tokenize(texte: string, alias: { alias: string; id: string }[]): Token[] {
+  const entrees = alias.filter((e) => aliasValide(e.alias));
   if (entrees.length === 0) return [{ type: "texte", contenu: texte }];
   entrees.sort((a, b) => b.alias.length - a.alias.length);
 
@@ -102,10 +70,20 @@ export function tokenize(texte: string, conjointPrenom: string): Token[] {
   return tokens;
 }
 
+/**
+ * Le passage obligé de tout texte narratif : on remplace d'abord les noms de
+ * référence du contenu par ceux tirés pour la partie, puis on colorise.
+ */
+export function useTexte(texte: string): string {
+  const game = useGame((g) => g.game);
+  return useMemo(() => substituerNoms(texte, game), [texte, game?.castNames]);
+}
+
 export function RichText({ children, className, style }: { children: string; className?: string; style?: React.CSSProperties }) {
-  const conjointPrenom = useGame((g) => g.game?.bio.conjointPrenom ?? "");
+  const game = useGame((g) => g.game);
   const setFocus = useGame((g) => g.setFocus);
-  const tokens = useMemo(() => tokenize(children, conjointPrenom), [children, conjointPrenom]);
+  const texte = useTexte(children);
+  const tokens = useMemo(() => (game ? tokenize(texte, aliasAffiches(game)) : [{ type: "texte" as const, contenu: texte }]), [texte, game?.castNames, game?.bio.conjointPrenom]);
 
   return (
     <p className={className} style={style}>

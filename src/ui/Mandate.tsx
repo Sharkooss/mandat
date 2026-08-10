@@ -3,6 +3,7 @@ import type { GameState } from "../engine/types";
 import { useGame } from "../store";
 import { ACTIONS, REFORMES, type ActionDef } from "../content/france/actions";
 import { CAST, CAST_TAGS } from "../content/france/data";
+import { nomCompletDe, substituerNoms } from "../engine/noms";
 import { DeltaChips, EventView, Ledger, PressList, StatsTabs, Tag, TopBar } from "./components";
 import { RichText } from "./RichText";
 
@@ -109,7 +110,7 @@ export default function Mandate({ s }: { s: GameState }) {
                   color: "var(--color-bad)",
                 }}
               >
-                ⚠ Crise — {s.crisis.titre} · jour {s.crisis.jour}
+                ⚠ Crise — {substituerNoms(s.crisis.titre, s)} · jour {s.crisis.jour}
               </div>
               <EventView s={s} />
             </div>
@@ -220,7 +221,7 @@ export default function Mandate({ s }: { s: GameState }) {
                         }}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-semibold text-[13px]">{c.nom}</span>
+                          <span className="font-semibold text-[13px]">{nomCompletDe(s, id)}</span>
                           <div className="flex gap-1">
                             <Tag tone={rel[1]}>{rel[0]}</Tag>
                             {st.ambition >= 65 && <Tag tone="var(--color-warn)">⚑ Ambitieux</Tag>}
@@ -276,7 +277,7 @@ export default function Mandate({ s }: { s: GameState }) {
                 {[...s.log].reverse().slice(0, 12).map((l, i) => (
                   <div key={i} className="flex gap-2">
                     <span style={{ color: "var(--accent)" }}>◆</span>
-                    <span style={{ color: "var(--color-muted)" }}>{l.text}</span>
+                    <span style={{ color: "var(--color-muted)" }}>{substituerNoms(l.text, s)}</span>
                   </div>
                 ))}
               </div>

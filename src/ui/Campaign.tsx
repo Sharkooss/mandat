@@ -4,7 +4,9 @@ import { useGame, DEBATE_OFFSET } from "../store";
 import { PROMESSES, CAST, SEGMENTS } from "../content/france/data";
 import { CAMPAIGN_ACTIONS, DEBATE_BEATS, sondageAffiche } from "../engine/campaign";
 import { makeRng } from "../engine/rng";
+import { nomCompletDe } from "../engine/noms";
 import { DeltaChips, EventView, RareteBadge, Tag } from "./components";
+import { RichText } from "./RichText";
 
 const ACTION_META: Record<string, { icone: string; tone: string }> = {
   meeting: { icone: "◎", tone: "var(--color-social)" },
@@ -117,16 +119,16 @@ function Debat({ s }: { s: GameState }) {
   const doDebate = useGame((g) => g.doDebate);
   const continueAfter = useGame((g) => g.continueAfter);
   const [beats, setBeats] = useState<string[]>([]);
-  const opposant = CAST.find((c) => c.id === s.campaign!.opposantId)?.nom ?? "Maryse Cottin";
+  const opposant = CAST.some((c) => c.id === s.campaign!.opposantId) ? nomCompletDe(s, s.campaign!.opposantId) : "Maryse Cottin";
 
   if (s.resolution) {
     return (
       <div className="card p-6 fade-in">
         <Tag tone="var(--color-secu)">Le débat</Tag>
         <h2 className="press-une text-2xl mt-3 mb-4">Verdict des rédactions</h2>
-        <p className="text-[15px] leading-relaxed pl-4 border-l-2" style={{ borderColor: "var(--accent)" }}>
+        <RichText className="text-[15px] leading-relaxed pl-4 border-l-2" style={{ borderColor: "var(--accent)" }}>
           {s.resolution}
-        </p>
+        </RichText>
         <DeltaChips deltas={s.lastDeltas} signals={s.lastSignals} check={s.lastCheck} />
         <button className="btn-primary mt-5" onClick={continueAfter}>
           Reprendre la campagne
@@ -195,7 +197,7 @@ export default function Campaign({ s }: { s: GameState }) {
 
   if (!s.campaign) return <Programme s={s} />;
   const c = s.campaign;
-  const opposant = CAST.find((x) => x.id === c.opposantId)?.nom ?? "Maryse Cottin";
+  const opposant = CAST.some((x) => x.id === c.opposantId) ? nomCompletDe(s, c.opposantId) : "Maryse Cottin";
   const sondage = sondageAffiche(s, makeRng(s.seed + 999, s.rngCalls));
   const enDebat = c.week === c.totalWeeks - DEBATE_OFFSET && !c.debatFait;
   const fini = c.week > c.totalWeeks;

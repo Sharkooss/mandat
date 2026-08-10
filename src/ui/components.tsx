@@ -4,6 +4,7 @@ import type { Delta } from "../engine/deltas";
 import { CAST, CAST_TAGS, SEGMENTS, PROMESSES } from "../content/france/data";
 import { bordMeta } from "../engine/bord";
 import { rangMeta } from "../engine/check";
+import { nomCompletDe, nomDe, substituerNoms } from "../engine/noms";
 import { getEvent } from "../engine/registry";
 import { useGame } from "../store";
 import { RichText } from "./RichText";
@@ -293,6 +294,8 @@ const TONE_PRESSE: Record<PressItem["tone"], string> = {
 };
 
 export function PressList({ items }: { items: PressItem[] }) {
+  const game = useGame((g) => g.game);
+  const N = (t: string) => substituerNoms(t, game);
   return (
     <div className="space-y-2.5">
       {items.map((it, i) =>
@@ -302,7 +305,7 @@ export function PressList({ items }: { items: PressItem[] }) {
             className="press-une text-[19px] leading-snug pb-3 mb-1 border-b"
             style={{ color: TONE_PRESSE[it.tone], borderColor: "var(--color-line-soft)" }}
           >
-            {it.text}
+            {N(it.text)}
           </div>
         ) : it.kind === "symptome" ? (
           <div
@@ -310,7 +313,7 @@ export function PressList({ items }: { items: PressItem[] }) {
             key={i}
             style={{ color: "var(--color-warn)", background: "color-mix(in srgb, var(--color-warn) 9%, transparent)" }}
           >
-            ◐ {it.text}
+            ◐ {N(it.text)}
           </div>
         ) : (
           <RichText key={i} className="text-[13px] leading-relaxed" style={{ color: TONE_PRESSE[it.tone] === "var(--color-text)" ? "var(--color-muted)" : TONE_PRESSE[it.tone] }}>
@@ -345,6 +348,8 @@ export function EventView({ s }: { s: GameState }) {
   const texte = typeof ev.texte === "function" ? ev.texte(s) : ev.texte;
   const meta = KIND_META[ev.kind] ?? KIND_META.standard;
   const rarete = rareteOf(ev);
+  // Les titres et les intitulés de choix citent eux aussi des noms.
+  const N = (t: string) => substituerNoms(t, s);
 
   return (
     <div className="card p-6 fade-in" key={ev.id + (s.resolution ? "-r" : "")}>
@@ -352,13 +357,13 @@ export function EventView({ s }: { s: GameState }) {
         <Tag tone={meta.tone}>{meta.label}</Tag>
         {rarete !== "commune" && <RareteBadge rarete={rarete} />}
       </div>
-      <h2 className="press-une text-2xl mb-3 leading-tight">{ev.titre}</h2>
+      <h2 className="press-une text-2xl mb-3 leading-tight">{N(ev.titre)}</h2>
 
       {source && (
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <Tag tone={CAMP_TONE[source.camp]}>{CAST_TAGS[source.id] ?? source.role}</Tag>
           <span className="text-[11px]" style={{ color: "var(--color-faint)" }}>
-            {source.biais ? `⚠ ${source.biais}` : source.nom}
+            {source.biais ? `⚠ ${source.biais}` : nomCompletDe(s, source.id)}
           </span>
         </div>
       )}
@@ -378,10 +383,10 @@ export function EventView({ s }: { s: GameState }) {
                   style={{ "--tone": [TONE.eco, TONE.social, TONE.monde, TONE.perso][i % 4] } as React.CSSProperties}
                   onClick={() => chooseOption(c.id)}
                 >
-                  <div className="font-semibold text-[14px]">{c.label}</div>
+                  <div className="font-semibold text-[14px]">{N(c.label)}</div>
                   {c.detail && (
                     <div className="text-[12px] mt-0.5" style={{ color: "var(--color-faint)" }}>
-                      {c.detail}
+                      {N(c.detail)}
                     </div>
                   )}
                 </button>
@@ -478,7 +483,7 @@ function Entourage({ s }: { s: GameState }) {
           style={{ "--tone": "var(--accent)", cursor: "pointer" } as React.CSSProperties}
           onClick={() => setFocus(null)}
         >
-          ✕ Ne plus suivre {CAST.find((c) => c.id === focus)?.nom}
+          ✕ Ne plus suivre {nomDe(s, focus)}
         </button>
       )}
       <div className="flex flex-wrap gap-1 mb-3">
@@ -500,7 +505,7 @@ function Entourage({ s }: { s: GameState }) {
       <div className="space-y-1.5 max-h-[420px] panneau-scroll">
         {liste.map((c) => {
           const st = s.characters[c.id];
-          const nom = c.id === "conjoint" ? s.bio.conjointPrenom : c.nom;
+          const nom = nomCompletDe(s, c.id);
           const rel = relationMeta(st.loyaute);
           const suivi = focus === c.id;
           return (
