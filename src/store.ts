@@ -2,14 +2,14 @@
 import { persist } from "zustand/middleware";
 import type { Bio, CheckRang, GameState } from "./engine/types";
 import { makeInitialState, applyBio, rngOf, normalizeState } from "./engine/init";
-import { randomSeed } from "./engine/rng";
+import { randomSeed, type Rng } from "./engine/rng";
 import { makeCtx } from "./engine/ctx";
 import { getEvent, getCrise } from "./engine/registry";
 import { genBriefing, selectTurnEvents, endOfTurn, updateTrends } from "./engine/turn";
 import { applyCampaignAction, makeCampaign, resolveElection, runDebate } from "./engine/campaign";
 import { buildAscension } from "./content/france/ascension";
 import { EVENTS_CAMPAGNE } from "./content/france/campagne";
-import { ACTIONS, REFORMES } from "./content/france/actions";
+import { ACTIONS, CHANCE_OPPORTUNITE, REFORMES, type ActionDef } from "./content/france/actions";
 import { buildEnding, checkEndings, type EndingCause } from "./content/france/fins";
 import { computeDeltas, computeSignals, pushLedger, snapshot } from "./engine/deltas";
 import { appliquerCheck, planActionCheck, planCampagneCheck, planChoixCheck, planDebatCheck } from "./engine/check";
@@ -99,6 +99,9 @@ function appliquerAction(s: GameState, actionId: string, param: string | undefin
   s.pc -= cout;
   s.actionsUsed.push(actionId === "reforme" ? `reforme:${param}` : actionId);
   s.actionCooldown[actionId] = s.turnCount;
+  // Saisir une occasion referme la fenêtre : celle-ci ne reviendra jamais, et
+  // il faudra quelques semestres avant qu'une autre s'ouvre.
+  if (action.opportunite) s.opportuniteCooldown = rng.int(2, 4);
   s.rngCalls = rng.state();
 }
 
@@ -194,6 +197,25 @@ function pantheonFrom(s: GameState): PantheonEntry {
   };
 }
 
+/**
+ * Tire l'opportunité du semestre — une au plus, et jamais deux fois la même de
+ * toute la partie. Trois garde-fous font qu'elle reste une occasion et non une
+ * rubrique du menu : elle disparaît définitivement une fois saisie, un temps
+ * mort la suit, et même quand la situation s'y prête elle ne se présente que
+ * selon sa rareté. Une fenêtre qu'on est sûr de revoir n'oblige à rien.
+ */
+function tirerOpportunite(s: GameState, rng: Rng, dispo: (a: ActionDef) => boolean): string[] {
+  if (s.opportuniteCooldown > 0) {
+    s.opportuniteCooldown -= 1;
+    return [];
+  }
+  const poids = (a: ActionDef) => CHANCE_OPPORTUNITE[a.rarete ?? "exceptionnelle"];
+  const ouvertes = ACTIONS.filter((a) => a.opportunite && s.actionCooldown[a.id] === undefined && dispo(a));
+  if (ouvertes.length === 0) return [];
+  const choisie = rng.weighted(ouvertes.map((a) => ({ item: a, weight: poids(a) })));
+  return rng.chance(poids(choisie)) ? [choisie.id] : [];
+}
+
 /** Démarre un semestre : briefing, symptômes, sélection des événements. */
 function startTurn(s: GameState): void {
   const rng = rngOf(s);
@@ -225,7 +247,7 @@ function startTurn(s: GameState): void {
   s.actionPool = [
     ...ACTIONS.filter((a) => a.socle).map((a) => a.id),
     ...tires,
-    ...ACTIONS.filter((a) => a.opportunite && dispo(a)).map((a) => a.id),
+    ...tirerOpportunite(s, rng, dispo),
   ];
 
   updateTrends(s);

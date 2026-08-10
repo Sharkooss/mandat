@@ -1,7 +1,7 @@
 ﻿import { useState } from "react";
 import type { GameState } from "../engine/types";
 import { useGame } from "../store";
-import { ACTIONS, REFORMES, type ActionDef } from "../content/france/actions";
+import { ACTIONS, REFORMES, type ActionDef, type OpportuniteRarete } from "../content/france/actions";
 import { CAST, CAST_TAGS } from "../content/france/data";
 import { nomCompletDe, substituerNoms } from "../engine/noms";
 import { DeltaChips, EventView, Ledger, PressList, StatsTabs, Tag, TopBar } from "./components";
@@ -18,6 +18,13 @@ const REFORME_TONE: Record<string, string> = {
   ref_quotas: "var(--color-monde)",
   ref_proportionnelle: "var(--color-pouvoir)",
   ref_usines: "var(--color-eco)",
+};
+
+/** L'intitulé dit d'emblée à quel point l'occasion est improbable. */
+const TITRE_OPPORTUNITE: Record<OpportuniteRarete, string> = {
+  rare: "L'opportunité du moment",
+  exceptionnelle: "Une occasion exceptionnelle",
+  historique: "Une occasion historique",
 };
 
 function CostPips({ n }: { n: number }) {
@@ -242,7 +249,10 @@ export default function Mandate({ s }: { s: GameState }) {
                   {opportunites.length > 0 && (
                     <div className="mb-3">
                       <div className="label mb-1.5" style={{ color: "var(--color-warn)" }}>
-                        ✦ Opportunités du moment
+                        ✦ {TITRE_OPPORTUNITE[opportunites[0].rarete ?? "exceptionnelle"]}
+                      </div>
+                      <div className="text-[11px] mb-1.5" style={{ color: "var(--color-faint)" }}>
+                        Une fenêtre que la situation vient d'ouvrir. Une fois saisie, elle ne se représentera pas.
                       </div>
                       <div className="space-y-2 stagger">
                         {opportunites.map((a) => (

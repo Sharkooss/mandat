@@ -486,6 +486,8 @@ export interface GameState {
   /** Actions proposées ce tour-ci (tirage) et actions récemment utilisées. */
   actionPool: string[];
   actionCooldown: Record<string, number>;
+  /** Semestres restants avant qu'une nouvelle opportunité puisse se présenter. */
+  opportuniteCooldown: number;
   /** Personnage mis en avant par un clic dans un texte. */
   focusCharacter: string | null;
   press: PressItem[];

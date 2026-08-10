@@ -18,11 +18,31 @@ export interface ActionDef {
   socle?: boolean;
   /** Nombre de semestres avant de pouvoir la reprendre. */
   cooldown?: number;
-  /** Opportunité : n'apparaît que si la situation s'y prête, et frappe fort. */
+  /**
+   * Opportunité : une fenêtre que la situation ouvre, jamais deux fois. Elle ne
+   * se présente que si sa `cond` est remplie, une seule à la fois, et elle
+   * disparaît définitivement du jeu dès qu'on l'a saisie — c'est ce qui rend le
+   * choix de la saisir ou non intéressant.
+   */
   opportunite?: boolean;
+  /** Pour une opportunité : à quel point elle se fait attendre. */
+  rarete?: OpportuniteRarete;
   icone: string;
   tone: string;
 }
+
+/**
+ * Trois degrés de rareté. Le nombre sert à la fois de poids dans le tirage et
+ * de probabilité que l'opportunité tirée se présente vraiment : une occasion
+ * historique reste rare même quand toutes ses conditions sont réunies.
+ */
+export type OpportuniteRarete = "rare" | "exceptionnelle" | "historique";
+
+export const CHANCE_OPPORTUNITE: Record<OpportuniteRarete, number> = {
+  rare: 0.5,
+  exceptionnelle: 0.3,
+  historique: 0.16,
+};
 
 export interface ReformeDef {
   id: string;
@@ -542,7 +562,7 @@ export const ACTIONS: ActionDef[] = [
     detail: "Vous avez le charisme pour ça. Ça n'arrivera pas deux fois.",
     cond: (s) => s.player.charisme >= 70 || s.player.rhetorique >= 75,
     opportunite: true,
-    cooldown: 8,
+    rarete: "historique",
     icone: "✷",
     tone: "var(--color-perso)",
     effects: (c) => {
@@ -558,7 +578,7 @@ export const ACTIONS: ActionDef[] = [
     detail: "Un secteur s'effondre. Y aller massivement.",
     cond: (s) => s.country.services < 32 || s.country.securite < 35 || s.country.cohesion < 28,
     opportunite: true,
-    cooldown: 5,
+    rarete: "rare",
     icone: "✚",
     tone: "var(--color-bad)",
     effects: (c) => {
@@ -574,7 +594,7 @@ export const ACTIONS: ActionDef[] = [
     detail: "La presse vous massacre. Contre-attaquer.",
     cond: (s) => s.power.presse < 36,
     opportunite: true,
-    cooldown: 5,
+    rarete: "rare",
     icone: "◉",
     tone: "var(--color-perso)",
     effects: (c) => {
@@ -595,7 +615,7 @@ export const ACTIONS: ActionDef[] = [
     detail: "Le pays gronde. Y aller sans service d'ordre.",
     cond: (s) => s.hidden.agitation > 55,
     opportunite: true,
-    cooldown: 4,
+    rarete: "rare",
     icone: "◎",
     tone: "var(--color-social)",
     effects: (c) => {
@@ -616,7 +636,7 @@ export const ACTIONS: ActionDef[] = [
     detail: "Placer les vôtres partout. Efficace. Irréversible.",
     cond: (s) => s.derive >= 3,
     opportunite: true,
-    cooldown: 5,
+    rarete: "exceptionnelle",
     icone: "⚔",
     tone: "var(--color-bad)",
     effects: (c) => {
@@ -670,7 +690,7 @@ export const ACTIONS: ActionDef[] = [
     detail: "Ne garder que les vôtres. Les convictions avant les compétences.",
     cond: (s) => Math.abs(s.bord) >= 7 && s.derive >= 3,
     opportunite: true,
-    cooldown: 5,
+    rarete: "exceptionnelle",
     icone: "⚑",
     tone: "var(--color-bad)",
     effects: (c) => {
@@ -689,6 +709,7 @@ export const ACTIONS: ActionDef[] = [
     detail: "Un sujet, cinq ans, votre nom dessus.",
     cond: (s) => s.turn <= 4 && !s.flags["grande_cause"],
     opportunite: true,
+    rarete: "rare",
     icone: "✶",
     tone: "var(--color-env)",
     effects: (c) => {
@@ -697,6 +718,391 @@ export const ACTIONS: ActionDef[] = [
       c.sched("grande_cause_bilan", 6, 10, 0.7);
       c.log("Vous avez fait d'un seul sujet la grande cause de votre mandat.");
       return "Un sujet, une équipe dédiée, un budget sanctuarisé et votre nom associé pour toujours. Les grandes causes ne se jugent qu'à la fin — mais elles donnent à un mandat ce qui lui manque presque toujours : une direction lisible.";
+    },
+  },
+
+  // --- Opportunités : l'économie -------------------------------------------
+  {
+    id: "conference_prix",
+    nom: "Convoquer la conférence des prix",
+    cout: 2,
+    detail: "Les étiquettes brûlent. Réunir la distribution et taper du poing.",
+    cond: (s) => s.country.inflation > 5.5,
+    opportunite: true,
+    rarete: "rare",
+    icone: "◈",
+    tone: "var(--color-eco)",
+    effects: (c) => {
+      c.dire(
+        "prix",
+        "Les prix vont baisser. Je m'y engage devant vous, et je reviendrai vous rendre des comptes",
+        "à la sortie de la conférence des prix",
+      );
+      c.adj({ country: { inflation: -1.4, marge: -4 }, power: { popularite: 6, patronat: -8 } });
+      c.rel("charvet", { rancune: 10 });
+      c.press("« Trois cents produits bloqués » — la mesure fait la une de tous les journaux du soir", "favorable");
+      return "Onze heures de réunion, une liste de trois cents produits, et une conférence de presse à minuit où vous annoncez des baisses que vous n'avez pas totalement obtenues. La distribution signe en serrant les dents. Ça calmera le caddie six mois ; personne dans la salle ne croit que ça règle quoi que ce soit.";
+    },
+  },
+  {
+    id: "grand_emprunt",
+    nom: "Lancer le grand emprunt national",
+    cout: 2,
+    detail: "Les caisses sont vides. Aller chercher l'argent chez les Français.",
+    cond: (s) => s.country.dette > 145 || s.country.marge < 18,
+    opportunite: true,
+    rarete: "exceptionnelle",
+    icone: "▤",
+    tone: "var(--color-eco)",
+    effects: (c) => {
+      const succes = c.s.power.popularite + c.rng.int(-15, 20) > 45;
+      if (succes) {
+        c.adj({ country: { marge: 16, dette: 6, cohesion: 4 }, power: { popularite: 4 } });
+        c.log("Le grand emprunt national a été souscrit au-delà des objectifs.");
+        return "Guichets ouverts six semaines, taux honnête, affiches partout. Les Français prêtent à leur propre État plus qu'on ne l'espérait — il y a dans ce geste quelque chose de très ancien, à mi-chemin entre la confiance et le placement. La dette monte, mais elle est désormais détenue par des gens qui votent.";
+      }
+      c.adj({ country: { marge: 5, dette: 4 }, power: { popularite: -5, patronat: -4 } });
+      return "Guichets ouverts six semaines, et un résultat tiède que Bercy qualifie de « conforme aux prévisions révisées ». On ne prête pas à un État dont on doute, et c'est bien le problème : vous vouliez de l'argent, vous avez obtenu un sondage.";
+    },
+  },
+  {
+    id: "grands_travaux",
+    nom: "Décréter les grands travaux",
+    cout: 2,
+    detail: "Le chômage explose. Sortir la truelle et le béton.",
+    cond: (s) => s.country.chomage > 11.5,
+    opportunite: true,
+    rarete: "rare",
+    icone: "⚒",
+    tone: "var(--color-eco)",
+    effects: (c) => {
+      c.dire("emploi", "Personne ne restera au bord du chemin. Le chantier est ouvert, et il est ouvert à tous", "au lancement des grands travaux");
+      c.adj({
+        country: { chomage: -1.3, croissance: 0.5, marge: -10, dette: 5, environnement: -4 },
+        power: { popularite: 6, syndicats: 8, patronat: 5 },
+      });
+      c.seg("periurbain", { soutien: 6 });
+      c.log("Un plan de grands travaux a été décrété.");
+      return "Lignes ferroviaires, réseaux d'eau, rénovation de trois mille écoles : de la commande publique brute, décidée en six semaines au lieu de six ans. Les carnets se remplissent, les chiffres du chômage tourneront dans un an, et les écologistes de votre majorité découvrent la quantité de béton qu'il faut pour faire baisser une courbe.";
+    },
+  },
+  {
+    id: "dividende_croissance",
+    nom: "Rendre le dividende de la croissance",
+    cout: 1,
+    detail: "Ça va bien. Trop bien pour ne rien en faire.",
+    cond: (s) => s.country.croissance > 2.4 && s.country.marge > 52,
+    opportunite: true,
+    rarete: "exceptionnelle",
+    icone: "✧",
+    tone: "var(--color-eco)",
+    effects: (c) => {
+      c.adj({ country: { marge: -12, cohesion: 5, services: 3 }, power: { popularite: 11, presse: 4 } });
+      c.seg("periurbain", { soutien: 5, participation: 3 });
+      c.seg("csp", { soutien: 4 });
+      c.press("« Le président rend l'argent » — la séquence tourne en boucle", "favorable");
+      c.log("Vous avez redistribué l'excédent budgétaire aux ménages.");
+      return "Un chèque, un vrai, envoyé avant l'été à quinze millions de foyers. Bercy plaide pour désendetter, vous plaidez pour qu'on se souvienne de vous. Les deux raisonnements sont bons ; un seul se voit sur un relevé bancaire.";
+    },
+  },
+
+  // --- Opportunités : le monde ---------------------------------------------
+  {
+    id: "mediation_mondiale",
+    nom: "Prendre la médiation",
+    cout: 2,
+    detail: "Deux puissances se parlent enfin. Elles cherchent une table.",
+    cond: (s) => s.country.prestige > 68,
+    opportunite: true,
+    rarete: "historique",
+    icone: "☮",
+    tone: "var(--color-monde)",
+    effects: (c) => {
+      const abouti = c.s.player.strategie + c.rng.int(-10, 25) > 60;
+      if (abouti) {
+        c.adj({ country: { prestige: 14, cohesion: 4 }, power: { popularite: 8, presse: 7 }, hidden: { fatigue: 12 } });
+        c.rel("weiss", { loyaute: 8 });
+        c.flag("mediation_reussie");
+        c.press("« La paix signée à Paris » — les images de la poignée de main font le tour du monde", "favorable");
+        c.log("Vous avez obtenu un accord entre deux puissances en guerre.");
+        return "Neuf jours dans un château sous cloche, sans téléphone, à faire la navette entre deux ailes. Le texte final tient en quatre pages et ne satisfait personne, ce qui est la définition d'un accord. La photo de la poignée de main sera dans les manuels bien après que le pays aura oublié votre bilan intérieur.";
+      }
+      c.adj({ country: { prestige: -6 }, power: { popularite: -4 }, hidden: { fatigue: 14 } });
+      return "Neuf jours dans un château sous cloche, et une délégation qui repart la nuit sans prévenir. Vous avez engagé la France dans un échec très visible. En diplomatie, celui qui convoque est celui qui perd si personne ne signe.";
+    },
+  },
+  {
+    id: "tournee_reconquete",
+    nom: "La tournée de reconquête",
+    cout: 2,
+    detail: "La France ne pèse plus rien. Aller le corriger sur place.",
+    cond: (s) => s.country.prestige < 32,
+    opportunite: true,
+    rarete: "exceptionnelle",
+    icone: "✈",
+    tone: "var(--color-monde)",
+    effects: (c) => {
+      c.adj({ country: { prestige: 12, marge: -3 }, power: { popularite: -3, patronat: 6 }, hidden: { fatigue: 16 } });
+      c.rel("weiss", { loyaute: 5 });
+      c.press("« Onze pays en dix-huit jours » — la presse compte les kilomètres plutôt que les résultats", "neutre");
+      return "Onze capitales, dix-huit jours, quatre fuseaux horaires et deux contrats industriels qu'on vous disait perdus. Vous rentrez avec un prestige recousu et une opinion intérieure qui a compté vos absences une par une. Le rayonnement se paie toujours en présence.";
+    },
+  },
+
+  // --- Opportunités : les corps et l'appareil -------------------------------
+  {
+    id: "grenelle",
+    nom: "Ouvrir un Grenelle",
+    cout: 2,
+    detail: "Les syndicats sont partis, la rue est pleine. Tout remettre sur la table.",
+    cond: (s) => s.power.syndicats < 26 && s.hidden.agitation > 45,
+    opportunite: true,
+    rarete: "exceptionnelle",
+    icone: "⚖",
+    tone: "var(--color-social)",
+    effects: (c) => {
+      c.adj({ power: { syndicats: 20, patronat: -7, popularite: 4 }, country: { marge: -7, cohesion: 5 }, hidden: { agitation: -14, fatigue: 10 } });
+      c.rel("kervella", { rancune: -12, loyaute: 8 });
+      c.rel("belkacem", { loyaute: 10 });
+      c.rel("charvet", { rancune: 8 });
+      c.log("Un Grenelle a été ouvert avec les partenaires sociaux.");
+      return "Trois nuits blanches rue de Grenelle, des salaires, des grilles, un relevé de conclusions signé à 4 h 20 du matin par des gens qui ne se parlaient plus. Bruno Kervella signe le dernier et sans un mot. Ça coûte très cher et ça vous rachète une année de paix sociale — les deux à la fois, comme toujours.";
+    },
+  },
+  {
+    id: "pacte_productif",
+    nom: "Sceller le pacte productif",
+    cout: 2,
+    detail: "Le patronat vous a lâché. Le récupérer coûtera quelque chose.",
+    cond: (s) => s.power.patronat < 28,
+    opportunite: true,
+    rarete: "rare",
+    icone: "◧",
+    tone: "var(--color-eco)",
+    effects: (c) => {
+      c.adj({ power: { patronat: 20, syndicats: -8, popularite: -3 }, country: { croissance: 0.6, chomage: -0.5, marge: -6 } });
+      c.rel("charvet", { loyaute: 14, rancune: -8 });
+      c.rel("kervella", { rancune: 10 });
+      c.seg("csp", { soutien: 5 });
+      return "Baisse de charges contre engagements d'embauche, signés devant caméras. Édouard Charvet vous serre la main comme on referme un contrat d'assurance. Les engagements ne sont pas contraignants ; la baisse de charges, elle, s'applique dès janvier. Vous savez très bien lequel des deux tiendra.";
+    },
+  },
+  {
+    id: "congres_extraordinaire",
+    nom: "Convoquer un congrès extraordinaire",
+    cout: 2,
+    detail: "Le parti vous échappe. Le reprendre devant ses militants.",
+    cond: (s) => s.power.parti < 32,
+    opportunite: true,
+    rarete: "exceptionnelle",
+    icone: "♟",
+    tone: "var(--color-pouvoir)",
+    effects: (c) => {
+      const tenu = c.s.player.charisme + c.rng.int(-15, 22) > 55;
+      if (tenu) {
+        c.adj({ power: { parti: 24, popularite: 2 } });
+        c.rel("delval", { loyaute: 10, ambition: -8 });
+        c.log("Vous avez repris le parti en main lors d'un congrès extraordinaire.");
+        return "Deux mille militants dans un parc des expositions surchauffé, et quarante minutes sans notes qui rappellent à tout le monde pourquoi c'est vous. Sacha Delval applaudit debout, au troisième rang, avec la tête de quelqu'un qui recompte ses appuis.";
+      }
+      c.adj({ power: { parti: -10, popularite: -4, presse: -4 } });
+      c.rel("delval", { ambition: 12, loyaute: -10 });
+      c.sched("pm_rival", 2, 5, 0.5);
+      return "Deux mille militants, et une motion concurrente qui recueille 41 % — un score qu'on ne présente comme une victoire que quand on a perdu. Sacha Delval fait le tour des plateaux le lendemain pour expliquer qu'il n'est candidat à rien. Personne ne le croit, et il compte là-dessus.";
+    },
+  },
+  {
+    id: "loi_moralisation",
+    nom: "La loi de moralisation",
+    cout: 2,
+    detail: "Votre réputation est intacte. C'est un capital qui se dépense.",
+    cond: (s) => s.player.integrite > 74 && s.power.justice > 45,
+    opportunite: true,
+    rarete: "exceptionnelle",
+    icone: "§",
+    tone: "var(--color-secu)",
+    effects: (c) => {
+      c.dire("probite", "Aucun de mes proches, aucun de mes ministres, aucun de mes amis ne bénéficiera de la moindre exception", "en présentant la loi de moralisation");
+      c.adj({ power: { justice: 14, presse: 9, popularite: 7, parti: -12 }, player: { integrite: 4 } });
+      c.rel("espitalier", { rancune: 16 });
+      c.rel("alberti", { loyaute: 10 });
+      c.flag("moralisation");
+      c.log("La loi de moralisation de la vie publique a été promulguée.");
+      return "Emplois familiaux interdits, casier vierge exigé, réserve parlementaire supprimée, comptes de campagne ouverts. Le texte passe parce que personne ne peut voter contre à visage découvert. Jean-Marc Espitalier vous explique en petit comité que vous venez d'assécher le parti — il a raison, et il ne l'oubliera pas.";
+    },
+  },
+
+  // --- Opportunités : l'homme ou la femme ----------------------------------
+  {
+    id: "adresse_solennelle",
+    nom: "L'adresse au pays",
+    cout: 2,
+    detail: "Vous êtes au fond. Vingt minutes, en direct, sans filet.",
+    cond: (s) => s.power.popularite < 24,
+    opportunite: true,
+    rarete: "exceptionnelle",
+    icone: "◉",
+    tone: "var(--color-perso)",
+    effects: (c) => {
+      const juste = c.s.player.rhetorique + c.s.player.integrite / 2 + c.rng.int(-18, 20) > 70;
+      if (juste) {
+        c.dire("cap", "J'ai entendu. Je ne changerai pas de cap, je changerai de manière", "dans l'adresse aux Français");
+        c.adj({ power: { popularite: 13, presse: 5 }, country: { cohesion: 4 }, hidden: { agitation: -8 } });
+        c.log("Votre adresse aux Français a inversé la courbe.");
+        return "Vingt minutes seul face à une caméra, sans décor, sans prompteur visible. Vous reconnaissez deux erreurs par leur nom — ce que personne ne fait jamais — et vous ne demandez rien. Vingt-trois millions de téléspectateurs. Le lendemain, pour la première fois depuis un an, la courbe remonte.";
+      }
+      c.adj({ power: { popularite: -6, presse: -5 } });
+      return "Vingt minutes seul face à une caméra, et un ton qui sonne faux dès la troisième phrase. Le pays entend un homme qui s'explique au lieu d'un président qui décide. Les réseaux découpent la séquence en trente extraits avant même la fin du direct. On ne se relève pas d'une adresse ratée : on l'ajoute au dossier.";
+    },
+  },
+  {
+    id: "verite_sante",
+    nom: "Dire la vérité sur votre santé",
+    cout: 1,
+    detail: "Le Dr Manin insiste. Le pays finira par l'apprendre autrement.",
+    cond: (s) => s.hidden.sante < 45,
+    opportunite: true,
+    rarete: "exceptionnelle",
+    icone: "✚",
+    tone: "var(--color-perso)",
+    effects: (c) => {
+      c.adj({ power: { popularite: 8, presse: 10, parti: -8 }, player: { integrite: 6 }, hidden: { paranoia: -12 } });
+      c.rel("manin", { loyaute: 12 });
+      c.rel("conjoint", { loyaute: 8 });
+      c.rel("delval", { ambition: 10 });
+      c.flag("sante_publique");
+      c.press("« Le président dit son mal » — le bulletin de santé est publié intégralement", "favorable");
+      c.log("Vous avez rendu public votre état de santé.");
+      return "Un communiqué de quatre lignes, un bulletin de santé complet, et une phrase en fin de conférence de presse : « Vous saurez tout, et vous le saurez de moi. » Le pays vous en sait gré immédiatement. Votre propre camp, lui, commence à compter les mois — c'est le prix, et il est déjà payé.";
+    },
+  },
+  {
+    id: "retraite_strategique",
+    nom: "Disparaître quinze jours",
+    cout: 1,
+    detail: "Vous n'en pouvez plus. Personne ne sait où vous êtes.",
+    cond: (s) => s.hidden.fatigue > 78,
+    opportunite: true,
+    rarete: "rare",
+    icone: "☾",
+    tone: "var(--color-env)",
+    effects: (c) => {
+      c.adj({ hidden: { fatigue: -42, sante: 10, paranoia: -10 }, power: { popularite: -5, presse: -6 } });
+      c.rel("conjoint", { loyaute: 12, rancune: -8 });
+      c.press("« Où est le président ? » — deux semaines d'absence et autant de spéculations", "hostile");
+      return "Quinze jours dans une maison de fonction que personne ne connaît, sans agenda, sans note, sans conseiller. Vous dormez douze heures par nuit la première semaine. La presse parle de fuite, l'opposition d'abandon, et votre médecin de la seule décision sensée que vous ayez prise depuis deux ans.";
+    },
+  },
+  {
+    id: "devancer_generaux",
+    nom: "Devancer les généraux",
+    cout: 2,
+    detail: "Ça se murmure dans les états-majors. Ne pas attendre.",
+    cond: (s) => s.hidden.coup > 50,
+    opportunite: true,
+    rarete: "exceptionnelle",
+    icone: "⚔",
+    tone: "var(--color-bad)",
+    effects: (c) => {
+      const net = c.s.player.strategie + c.s.power.armee / 2 + c.rng.int(-20, 20) > 70;
+      if (net) {
+        c.adj({ hidden: { coup: -34, paranoia: 8 }, power: { armee: 6 } });
+        c.rel("verdier", { loyaute: 8, ambition: -10 });
+        c.log("Vous avez démantelé un noyau de conjurés dans l'armée.");
+        return "Trois mutations, une mise à la retraite anticipée, un commandement dissous, tout cela un mardi matin et sans un mot à la presse. Le général Verdier vous remet lui-même la liste, ce qui répond à la seule question qui comptait vraiment. Le reste de l'état-major comprend le message en lisant le Journal officiel.";
+      }
+      c.adj({ hidden: { coup: 12, paranoia: 16 }, power: { armee: -12 } });
+      c.rel("verdier", { rancune: 18, loyaute: -14 });
+      c.derive(1);
+      return "Vous frappez trop large et trop vite. Deux des officiers écartés n'avaient rien à se reprocher, et leurs camarades le savent. Vous vouliez décapiter une rumeur ; vous venez de lui donner des martyrs et une raison. L'armée ne pardonne pas l'injustice administrative — c'est la seule qu'elle subisse.";
+    },
+  },
+
+  // --- Opportunités : le pays ----------------------------------------------
+  {
+    id: "loi_climat",
+    nom: "La loi climat de rupture",
+    cout: 2,
+    detail: "L'environnement s'effondre. Un texte que personne n'ose écrire.",
+    cond: (s) => s.country.environnement < 32,
+    opportunite: true,
+    rarete: "rare",
+    icone: "❧",
+    tone: "var(--color-env)",
+    effects: (c) => {
+      c.adj({
+        country: { environnement: 16, croissance: -0.5, marge: -6 },
+        power: { patronat: -12, presse: 6, popularite: -2 },
+      });
+      c.seg("urbains", { soutien: 8, participation: 4 });
+      c.seg("ruraux", { soutien: -6 });
+      c.rel("charvet", { rancune: 14 });
+      c.log("Une loi climat de rupture a été promulguée.");
+      return "Interdictions datées, trajectoires contraignantes, sanctions réelles : pour une fois le texte n'est pas un catalogue d'intentions. Les urbains diplômés vous redécouvrent, la ruralité comprend qu'elle paiera d'abord, et le patronat sort de la réunion sans faire de déclaration — ce qui est sa manière de déclarer la guerre.";
+    },
+  },
+  {
+    id: "leadership_climat",
+    nom: "Prendre la tête du monde qui vient",
+    cout: 2,
+    detail: "Exemplaire chez vous, écouté partout. Une seule fois dans un mandat.",
+    cond: (s) => s.country.environnement > 68 && s.country.prestige > 55,
+    opportunite: true,
+    rarete: "historique",
+    icone: "✦",
+    tone: "var(--color-env)",
+    effects: (c) => {
+      c.adj({ country: { prestige: 15, environnement: 5, cohesion: 3 }, power: { popularite: 7, presse: 8 }, hidden: { fatigue: 10 } });
+      c.flag("leadership_climat");
+      c.seg("jeunes", { soutien: 10, participation: 6 });
+      c.press("« L'accord de Paris, le vrai » — quarante chefs d'État signent le texte français", "favorable");
+      c.log("La France a pris la tête d'une coalition climatique mondiale.");
+      return "On ne vous a pas donné ce rôle : vous l'avez pris, parce que vous étiez le seul à pouvoir montrer vos propres chiffres sans rougir. Quarante chefs d'État signent un texte rédigé au Quai d'Orsay. Les jeunes, qui ne vous devaient rien, vous inscrivent au crédit de quelque chose qu'ils vérifieront dans trente ans.";
+    },
+  },
+  {
+    id: "union_nationale",
+    nom: "Former l'union nationale",
+    cout: 2,
+    detail: "Le pays est derrière vous. Élargir tant que ça tient.",
+    cond: (s) => s.country.cohesion > 68 && s.power.popularite > 58,
+    opportunite: true,
+    rarete: "historique",
+    icone: "⚭",
+    tone: "var(--color-pouvoir)",
+    effects: (c) => {
+      c.adj({ power: { sieges: 42, parti: -10, popularite: 5, presse: 6 }, country: { cohesion: 6 } });
+      c.rel("andrieu", { loyaute: 25, rancune: -15, ambition: -8 });
+      c.rel("delval", { rancune: 12 });
+      c.rel("sallenave", { rancune: 15 });
+      c.flag("union_nationale");
+      c.log("Un gouvernement d'union nationale a été formé.");
+      return "Quatre portefeuilles à l'opposition de gouvernement, dont un régalien — ce qui est le seul geste que personne ne peut qualifier de cosmétique. Claire Andrieu accepte en quarante-huit heures ; son propre camp la traite de collaboratrice le soir même. Vous gouvernez désormais avec une majorité écrasante et sans plus aucune excuse.";
+    },
+  },
+  {
+    id: "dissolution_offensive",
+    nom: "Dissoudre",
+    cout: 2,
+    detail: "Vous êtes haut, l'Assemblée est courte. Tout remettre en jeu.",
+    cond: (s) => s.power.popularite > 60 && s.power.sieges < 289,
+    opportunite: true,
+    rarete: "historique",
+    icone: "⚑",
+    tone: "var(--color-pouvoir)",
+    effects: (c) => {
+      const marge = c.s.power.popularite - 50 + c.s.power.parti / 4 + c.rng.int(-22, 18);
+      if (marge > 12) {
+        c.adj({ power: { sieges: 96, parti: 10, popularite: 4 } });
+        c.s.cohabitation = false;
+        c.log("La dissolution vous a rendu une majorité absolue.");
+        return "Vingt-quatre jours de campagne éclair sur un seul argument : laissez-moi finir. Le pays vous donne une majorité absolue et le sentiment très rare, à l'Élysée, d'avoir eu raison contre tous les conseillers. Vous n'aurez plus jamais cette fenêtre — les dissolutions gagnantes ne se reproduisent pas.";
+      }
+      c.adj({ power: { sieges: -54, parti: -14, popularite: -10 } });
+      c.s.cohabitation = true;
+      c.rel("andrieu", { ambition: 14 });
+      c.log("La dissolution a tourné à la cohabitation.");
+      return "Vingt-quatre jours de campagne éclair, et un dimanche soir où les cartes se remplissent d'une couleur qui n'est pas la vôtre. Vous aviez la popularité ; il vous manquait les circonscriptions, qui ne se sondent pas. Il faudra désormais partager le pouvoir avec quelqu'un qui vous doit sa fonction et rien d'autre.";
     },
   },
 ];

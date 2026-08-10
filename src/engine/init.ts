@@ -80,6 +80,7 @@ export function makeInitialState(seed: number): GameState {
     ledger: [],
     actionPool: [],
     actionCooldown: {},
+    opportuniteCooldown: 0,
     focusCharacter: null,
     press: [],
     pressArchive: [],
@@ -135,6 +136,7 @@ export function normalizeState(saved: Partial<GameState> | null | undefined): Ga
   out.ledger = saved.ledger ?? [];
   out.actionPool = saved.actionPool ?? [];
   out.actionCooldown = saved.actionCooldown ?? {};
+  out.opportuniteCooldown = saved.opportuniteCooldown ?? 0;
   out.focusCharacter = saved.focusCharacter ?? null;
 
   // Les moments de vérité et le tirage du programme sont arrivés après coup :
