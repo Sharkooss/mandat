@@ -1,7 +1,8 @@
 ﻿import { useState } from "react";
 import type { GameState } from "../engine/types";
 import { useGame } from "../store";
-import { ACTIONS, REFORMES, type ActionDef, type OpportuniteRarete } from "../content/france/actions";
+import { ACTIONS, REFORMES, reformesOuvertes, type ActionDef, type OpportuniteRarete } from "../content/france/actions";
+import { REFORMES_PROPOSEES } from "../engine/menu";
 import { CAST, CAST_TAGS, NATIONS } from "../content/france/data";
 import { nomCompletDe, substituerNoms } from "../engine/noms";
 import { DeltaChips, etiquetteRelation, EventView, Ledger, PressList, StatsTabs, Tag, TopBar } from "./components";
@@ -18,6 +19,20 @@ const REFORME_TONE: Record<string, string> = {
   ref_quotas: "var(--color-monde)",
   ref_proportionnelle: "var(--color-pouvoir)",
   ref_usines: "var(--color-eco)",
+  ref_smic: "var(--color-social)",
+  ref_isf: "var(--color-eco)",
+  ref_ecole: "var(--color-social)",
+  ref_grand_age: "var(--color-social)",
+  ref_sante_rurale: "var(--color-social)",
+  ref_prisons: "var(--color-secu)",
+  ref_cannabis: "var(--color-env)",
+  ref_service_national: "var(--color-secu)",
+  ref_ric: "var(--color-pouvoir)",
+  ref_energie: "var(--color-env)",
+  ref_autoroutes: "var(--color-eco)",
+  ref_defense: "var(--color-secu)",
+  ref_fin_vie: "var(--color-perso)",
+  ref_uniforme: "var(--color-monde)",
 };
 
 /** L'intitulé dit d'emblée à quel point l'occasion est improbable. */
@@ -37,6 +52,29 @@ function CostPips({ n }: { n: number }) {
   );
 }
 
+/**
+ * Les chantiers du semestre, tels que le moteur les a tirés. Le repli sur les
+ * premiers chantiers ouverts ne sert qu'aux parties sauvegardées avant le
+ * tirage : le tour suivant remplit le vivier.
+ */
+function chantiersProposes(s: GameState) {
+  const ids = s.reformePool?.length ? s.reformePool : reformesOuvertes(s).slice(0, REFORMES_PROPOSEES).map((r) => r.id);
+  return ids.map((id) => REFORMES.find((r) => r.id === id)).filter((r): r is (typeof REFORMES)[number] => !!r);
+}
+
+/**
+ * Un bouton grisé sans explication passe pour un bug — Louis a cru à une
+ * persistance entre parties là où il manquait simplement un point. On dit donc
+ * toujours ce qui manque, et en quels termes.
+ */
+function TropCher({ cout, pc }: { cout: number; pc: number }) {
+  return (
+    <div className="text-[11px] mt-1.5" style={{ color: "var(--color-warn)" }}>
+      Coût {cout} · il ne vous reste {pc === 0 ? "plus rien" : `que ${pc} point${pc > 1 ? "s" : ""}`} ce semestre
+    </div>
+  );
+}
+
 function ActionButton({
   a,
   s,
@@ -48,7 +86,12 @@ function ActionButton({
   onPick: (a: ActionDef) => void;
   surbrillance?: boolean;
 }) {
-  const cout = a.id === "reforme" ? 2 : a.cout;
+  // « Lancer une réforme » ne coûte rien par elle-même : c'est le chantier
+  // choisi qui a un prix, et le moins cher de ceux proposés ce semestre en
+  // donne l'ordre de grandeur — sinon le bouton reste ouvert sur un menu où
+  // rien n'est finançable.
+  const cout = a.id === "reforme" ? Math.min(...chantiersProposes(s).map((r) => r.cout), 3) : a.cout;
+  const trop = cout > s.pc;
   return (
     <button
       className="btn-choice"
@@ -56,7 +99,7 @@ function ActionButton({
         "--tone": a.tone,
         background: surbrillance ? `color-mix(in srgb, ${a.tone} 12%, var(--color-surface-2))` : undefined,
       } as React.CSSProperties}
-      disabled={cout > s.pc}
+      disabled={trop}
       onClick={() => onPick(a)}
     >
       <div className="flex items-start gap-2.5">
@@ -71,6 +114,12 @@ function ActionButton({
           <div className="text-[11px] mt-0.5 leading-snug" style={{ color: "var(--color-faint)" }}>
             {a.detail}
           </div>
+          {a.opportunite && a.pourquoi && (
+            <div className="text-[11px] mt-1.5 pl-2 border-l-2" style={{ borderColor: a.tone, color: "var(--color-muted)" }}>
+              {a.pourquoi}
+            </div>
+          )}
+          {trop && <TropCher cout={cout} pc={s.pc} />}
         </div>
       </div>
     </button>
@@ -178,15 +227,18 @@ export default function Mandate({ s }: { s: GameState }) {
               ) : reformesOuvertes ? (
                 <div className="space-y-2 fade-in">
                   <div className="label mb-2">Quel chantier ?</div>
-                  {REFORMES.map((r) => {
+                  <div className="text-[11px] mb-2" style={{ color: "var(--color-faint)" }}>
+                    Quatre dossiers sont prêts ce semestre — pas les autres. Un chantier engagé ne se relance jamais.
+                  </div>
+                  {chantiersProposes(s).map((r) => {
                     const promiseLiee = s.promises.find((p) => p.id === r.promesse);
-                    const dejaFaite = s.actionsUsed.some((a) => a === `reforme:${r.id}`) || (promiseLiee && promiseLiee.status !== "en_cours");
+                    const trop = r.cout > s.pc;
                     return (
                       <button
                         key={r.id}
                         className="btn-choice"
                         style={{ "--tone": REFORME_TONE[r.id] ?? "var(--color-monde)" } as React.CSSProperties}
-                        disabled={r.cout > s.pc || !!dejaFaite}
+                        disabled={trop}
                         onClick={() => {
                           doAction("reforme", r.id);
                           setReformesOuvertes(false);
@@ -204,6 +256,7 @@ export default function Mandate({ s }: { s: GameState }) {
                             <Tag tone="var(--color-social)">★ Promesse de campagne</Tag>
                           </div>
                         )}
+                        {trop && <TropCher cout={r.cout} pc={s.pc} />}
                       </button>
                     );
                   })}
@@ -290,7 +343,7 @@ export default function Mandate({ s }: { s: GameState }) {
                         ✦ {TITRE_OPPORTUNITE[opportunites[0].rarete ?? "exceptionnelle"]}
                       </div>
                       <div className="text-[11px] mb-1.5" style={{ color: "var(--color-faint)" }}>
-                        Une fenêtre que la situation vient d'ouvrir. Une fois saisie, elle ne se représentera pas.
+                        Il a fallu du temps pour qu'elle s'ouvre. Une fois saisie, elle ne se représentera pas.
                       </div>
                       <div className="space-y-2 stagger">
                         {opportunites.map((a) => (

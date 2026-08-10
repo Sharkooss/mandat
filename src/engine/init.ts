@@ -84,7 +84,10 @@ export function makeInitialState(seed: number): GameState {
     ledger: [],
     actionPool: [],
     actionCooldown: {},
+    reformePool: [],
+    reformesFaites: [],
     opportuniteCooldown: 0,
+    opportuniteMurissement: {},
     focusCharacter: null,
     press: [],
     pressArchive: [],
@@ -144,6 +147,12 @@ export function normalizeState(saved: Partial<GameState> | null | undefined): Ga
   out.actionPool = saved.actionPool ?? [];
   out.actionCooldown = saved.actionCooldown ?? {};
   out.opportuniteCooldown = saved.opportuniteCooldown ?? 0;
+  // Le tirage des chantiers et le mûrissement des occasions sont arrivés après
+  // coup : une partie en cours récupère un compteur vierge, et son menu de
+  // réformes se remplira au semestre suivant.
+  out.reformePool = saved.reformePool ?? [];
+  out.reformesFaites = saved.reformesFaites ?? [];
+  out.opportuniteMurissement = saved.opportuniteMurissement ?? {};
   out.focusCharacter = saved.focusCharacter ?? null;
 
   // Les moments de vérité et le tirage du programme sont arrivés après coup :

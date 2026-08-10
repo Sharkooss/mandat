@@ -11,6 +11,8 @@ import { EVENTS_BORDS } from "../content/france/bords";
 import { EVENTS_MEMOIRE } from "../content/france/memoire";
 import { EVENTS_EUROPE } from "../content/france/europe";
 import { EVENTS_PRESSE } from "../content/france/presse";
+import { EVENTS_CHANTIERS } from "../content/france/chantiers";
+import { EVENTS_FOLIE } from "../content/france/folie";
 
 const ALL: GameEvent[] = [
   ...EVENTS_ASCENSION,
@@ -25,6 +27,8 @@ const ALL: GameEvent[] = [
   ...EVENTS_MEMOIRE,
   ...EVENTS_EUROPE,
   ...EVENTS_PRESSE,
+  ...EVENTS_CHANTIERS,
+  ...EVENTS_FOLIE,
 ];
 
 const BY_ID = new Map<string, GameEvent>(ALL.map((e) => [e.id, e]));

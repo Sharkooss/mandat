@@ -630,8 +630,19 @@ export interface GameState {
   /** Actions proposées ce tour-ci (tirage) et actions récemment utilisées. */
   actionPool: string[];
   actionCooldown: Record<string, number>;
+  /** Les quatre chantiers que le semestre met sur la table — jamais le vivier entier. */
+  reformePool: string[];
+  /** Les réformes engagées depuis l'investiture : on ne relance pas deux fois le même chantier. */
+  reformesFaites: string[];
   /** Semestres restants avant qu'une nouvelle opportunité puisse se présenter. */
   opportuniteCooldown: number;
+  /**
+   * Depuis combien de semestres la situation de chaque occasion tient. Une
+   * fenêtre ne s'ouvre pas parce qu'un seuil est franchi une fois : elle
+   * s'ouvre parce qu'il le reste. Le compteur retombe dès que la situation
+   * se referme.
+   */
+  opportuniteMurissement: Record<string, number>;
   /** Personnage mis en avant par un clic dans un texte. */
   focusCharacter: string | null;
   press: PressItem[];

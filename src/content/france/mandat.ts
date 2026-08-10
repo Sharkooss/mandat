@@ -573,6 +573,9 @@ export const EVENTS_MANDAT: GameEvent[] = [
         label: "Proposer la médiation française",
         effects: (c) => {
           c.adj({ country: { prestige: 6 }, hidden: { fatigue: 6 } });
+          // La guerre existe désormais dans cette partie-ci : c'est elle, et
+          // rien d'autre, qui pourra ouvrir un jour la grande médiation.
+          c.flag("guerre_ouverte");
           c.sched("monde_escalade", 4, 12, 0.15);
           c.log("Vous avez porté une médiation internationale dans la guerre des Deux Fleuves.");
           return "Trois sommets, des nuits sans sommeil, un cessez-le-feu fragile qui porte le nom d'une ville française. Il tiendra ce qu'il tiendra ; le carnet diplomatique de la France, lui, vient de se réévaluer.";
@@ -583,6 +586,7 @@ export const EVENTS_MANDAT: GameEvent[] = [
         label: "Se tenir à distance",
         effects: (c) => {
           c.adj({ country: { prestige: -4 } });
+          c.flag("guerre_ouverte");
           c.sched("monde_escalade", 4, 12, 0.25);
           return "La France « appelle à la retenue » — le communiqué que l'on rédige quand on a choisi de ne rien faire. D'autres capitales occupent l'espace. On s'en souviendra dans les négociations suivantes.";
         },
@@ -592,6 +596,7 @@ export const EVENTS_MANDAT: GameEvent[] = [
         label: "Vendre des armes au camp « défensif »",
         effects: (c) => {
           c.adj({ country: { marge: 4, prestige: -2 }, player: { integrite: -4 } });
+          c.flag("guerre_ouverte");
           c.sched("monde_armes_retour", 6, 16, 0.4);
           c.sched("monde_escalade", 4, 12, 0.3);
           return "Les contrats sont signés dans la discrétion des salons feutrés. L'industrie de défense embauche. Un jour, une photo montrera ce que ces armes ont fait — les photos finissent toujours par arriver.";

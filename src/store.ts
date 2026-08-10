@@ -18,7 +18,8 @@ import {
 import { parcoursDe, tirerPortraitAdverse } from "./content/france/affiche";
 import { buildAscension } from "./content/france/ascension";
 import { EVENTS_CAMPAGNE } from "./content/france/campagne";
-import { ACTIONS, CHANCE_OPPORTUNITE, REFORMES, type ActionDef } from "./content/france/actions";
+import { ACTIONS, REFORMES } from "./content/france/actions";
+import { murirOpportunites, tirerActionsSemestre, tirerOpportunite, tirerReformes } from "./engine/menu";
 import { buildEnding, checkEndings, type EndingCause } from "./content/france/fins";
 import { computeDeltas, computeSignals, pushLedger, snapshot } from "./engine/deltas";
 import { appliquerCheck, planActionCheck, planCampagneCheck, planChoixCheck, planDebatCheck } from "./engine/check";
@@ -108,6 +109,9 @@ function appliquerAction(s: GameState, actionId: string, param: string | undefin
   s.pc -= cout;
   s.actionsUsed.push(actionId === "reforme" ? `reforme:${param}` : actionId);
   s.actionCooldown[actionId] = s.turnCount;
+  // Un chantier engagé l'est pour de bon : il quitte le vivier de la partie, on
+  // ne le reverra ni ce semestre-ci ni dans cinq ans.
+  if (actionId === "reforme" && param && !s.reformesFaites.includes(param)) s.reformesFaites.push(param);
   // Saisir une occasion referme la fenêtre : celle-ci ne reviendra jamais, et
   // il faudra quelques semestres avant qu'une autre s'ouvre.
   if (action.opportunite) s.opportuniteCooldown = rng.int(2, 4);
@@ -245,25 +249,6 @@ function pantheonFrom(s: GameState): PantheonEntry {
   };
 }
 
-/**
- * Tire l'opportunité du semestre — une au plus, et jamais deux fois la même de
- * toute la partie. Trois garde-fous font qu'elle reste une occasion et non une
- * rubrique du menu : elle disparaît définitivement une fois saisie, un temps
- * mort la suit, et même quand la situation s'y prête elle ne se présente que
- * selon sa rareté. Une fenêtre qu'on est sûr de revoir n'oblige à rien.
- */
-function tirerOpportunite(s: GameState, rng: Rng, dispo: (a: ActionDef) => boolean): string[] {
-  if (s.opportuniteCooldown > 0) {
-    s.opportuniteCooldown -= 1;
-    return [];
-  }
-  const poids = (a: ActionDef) => CHANCE_OPPORTUNITE[a.rarete ?? "exceptionnelle"];
-  const ouvertes = ACTIONS.filter((a) => a.opportunite && s.actionCooldown[a.id] === undefined && dispo(a));
-  if (ouvertes.length === 0) return [];
-  const choisie = rng.weighted(ouvertes.map((a) => ({ item: a, weight: poids(a) })));
-  return rng.chance(poids(choisie)) ? [choisie.id] : [];
-}
-
 /** Démarre un semestre : briefing, symptômes, sélection des événements. */
 function startTurn(s: GameState): void {
   const rng = rngOf(s);
@@ -277,29 +262,16 @@ function startTurn(s: GameState): void {
   s.pc = Math.max(1, pc);
   s.pcMax = s.pc;
 
-  // Le menu du semestre : le socle, quatre actions tirées, et les opportunités
-  // que la situation ouvre. Deux semestres ne se ressemblent jamais tout à fait.
-  const dispo = (a: (typeof ACTIONS)[number]) => {
-    if (a.cond && !a.cond(s)) return false;
-    const utilise = s.actionCooldown[a.id];
-    if (utilise !== undefined && a.cooldown && s.turnCount - utilise < a.cooldown) return false;
-    return true;
-  };
-  const tirables = ACTIONS.filter((a) => !a.socle && !a.opportunite && dispo(a));
-  const tires: string[] = [];
-  while (tires.length < 4 && tirables.length > 0) {
-    const choisi = rng.pick(tirables);
-    tirables.splice(tirables.indexOf(choisi), 1);
-    tires.push(choisi.id);
-  }
-  s.actionPool = [
-    ...ACTIONS.filter((a) => a.socle).map((a) => a.id),
-    ...tires,
-    ...tirerOpportunite(s, rng, dispo),
-  ];
+  // Le menu du semestre : le socle, quatre actions tirées, quatre chantiers, et
+  // l'occasion que la situation a fini d'ouvrir. Les occasions mûrissent avant
+  // le briefing pour que leurs signes avant-coureurs puissent y figurer.
+  const signaux = murirOpportunites(s, rng);
+  s.actionPool = [...tirerActionsSemestre(s, rng), ...tirerOpportunite(s, rng)];
+  s.reformePool = tirerReformes(s, rng);
 
   updateTrends(s);
   genBriefing(s, rng);
+  for (const item of signaux) s.press.push(item);
   selectTurnEvents(s, rng);
   s.phase = "briefing";
   s.currentEvent = null;

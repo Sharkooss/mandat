@@ -22,13 +22,27 @@ export interface ActionDef {
   cooldown?: number;
   /**
    * Opportunité : une fenêtre que la situation ouvre, jamais deux fois. Elle ne
-   * se présente que si sa `cond` est remplie, une seule à la fois, et elle
-   * disparaît définitivement du jeu dès qu'on l'a saisie — c'est ce qui rend le
-   * choix de la saisir ou non intéressant.
+   * se présente que si sa `cond` est remplie **plusieurs semestres d'affilée**
+   * (ou si un événement l'a déclenchée), une seule à la fois, et elle disparaît
+   * définitivement du jeu dès qu'on l'a saisie — c'est ce qui rend le choix de
+   * la saisir ou non intéressant.
    */
   opportunite?: boolean;
   /** Pour une opportunité : à quel point elle se fait attendre. */
   rarete?: OpportuniteRarete;
+  /**
+   * Le drapeau qui l'arme. Quand il est présent, l'occasion naît d'un événement
+   * précis et non d'une conjonction de jauges : elle est mûre immédiatement, et
+   * peut donc tomber n'importe quand. Sans ce drapeau, elle n'existe pas.
+   */
+  declencheur?: string;
+  /**
+   * Le signe avant-coureur, glissé au briefing le semestre où la situation
+   * commence à s'installer. Une occasion doit s'annoncer avant de se présenter.
+   */
+  signal?: string;
+  /** Ce qui l'a ouverte, affiché sur la carte : le joueur doit savoir pourquoi. */
+  pourquoi?: string;
   icone: string;
   tone: string;
 }
@@ -196,7 +210,238 @@ export const REFORMES: ReformeDef[] = [
       return "Les aides sont ouvertes, les préfets mobilisés, les terrains viabilisés. Les usines mettront des années à sortir de terre — les inaugurations, si elles arrivent, tomberont pile pendant la campagne de quelqu'un. Peut-être la vôtre.";
     },
   },
+  {
+    id: "ref_smic",
+    nom: "Le coup de pouce au SMIC",
+    cout: 2,
+    promesse: "smic",
+    detail: "Deux millions de fiches de paie. Et le patronat en face.",
+    effects: (c) => {
+      c.adj({ country: { inflation: 0.4, croissance: -0.2 }, power: { patronat: -12, syndicats: 8 } });
+      c.promesse("smic", "tenue");
+      c.seg("periurbain", { soutien: 7 });
+      c.seg("quartiers", { soutien: 5 });
+      c.rel("charvet", { rancune: 12, loyaute: -8 });
+      return "Le décret paraît un 1er juillet, comme tous les décrets qui font plaisir. Deux millions de bulletins de salaire changent de ligne, ce qui se voit tout de suite ; les embauches différées dans les petites entreprises, elles, ne se voient jamais. Édouard Charvet parle de « décision politique » — dans sa bouche, ce n'est pas un compliment.";
+    },
+  },
+  {
+    id: "ref_isf",
+    nom: "Le retour de l'impôt sur la fortune",
+    cout: 3,
+    promesse: "isf",
+    detail: "Le symbole le plus cher de la vie politique française.",
+    effects: (c) => {
+      c.adj({ country: { marge: 6 }, power: { patronat: -18, presse: -6, popularite: 5 } });
+      c.promesse("isf", "tenue");
+      c.seg("public", { soutien: 6 });
+      c.seg("jeunes", { soutien: 4 });
+      c.seg("csp", { soutien: -7 });
+      c.rel("charvet", { rancune: 18, loyaute: -12 });
+      c.sched("isf_exil", 4, 10, 0.5);
+      return "Le texte passe en trois lectures et une nuit d'obstruction. Il rapportera moins que ce qu'on annonce et coûtera plus que ce qu'on croit — tout le monde le sait, personne ne le dit, parce que ce n'est pas la question. La question était de savoir de quel côté vous étiez, et le pays vient d'avoir sa réponse.";
+    },
+  },
+  {
+    id: "ref_ecole",
+    nom: "Les classes à douze élèves",
+    cout: 3,
+    promesse: "ecole_douze",
+    detail: "Quarante mille postes. Douze ans pour voir le résultat.",
+    effects: (c) => {
+      c.adj({ country: { services: 8, marge: -9 } });
+      c.promesse("ecole_douze", "partielle");
+      c.seg("public", { soutien: 8 });
+      c.seg("pavillonnaires", { soutien: 4 });
+      c.sched("ecole_bilan", 10, 16, 0.55);
+      return "Le dédoublement commence par les réseaux d'éducation prioritaire, faute de bâtiments ailleurs. Les premières cohortes passeront le bac sous un successeur qui en récoltera les chiffres. C'est la définition d'une politique scolaire : personne ne peut la mener et l'inaugurer.";
+    },
+  },
+  {
+    id: "ref_grand_age",
+    nom: "La loi grand âge",
+    cout: 3,
+    promesse: "grand_age",
+    detail: "Un point de PIB. Chaque année. Pour toujours.",
+    effects: (c) => {
+      c.adj({ country: { services: 7, marge: -10, cohesion: 3 } });
+      c.promesse("grand_age", "tenue");
+      c.seg("retraites", { soutien: 9, participation: 3 });
+      c.seg("public", { soutien: 4 });
+      return "Ratios d'encadrement, revalorisation des aides à domicile, contrôle des groupes privés : la loi que six gouvernements avaient annoncée sort enfin. Elle engage un point de PIB par an, indéfiniment, pour une population qui ne fera que croître. C'est la dépense la plus honnête de votre mandat, et celle dont vos successeurs vous en voudront le plus.";
+    },
+  },
+  {
+    id: "ref_sante_rurale",
+    nom: "Les maisons de santé",
+    cout: 2,
+    promesse: "sante_rurale",
+    detail: "Des murs, oui. Des médecins, c'est autre chose.",
+    effects: (c) => {
+      c.adj({ country: { services: 4, marge: -3 } });
+      c.promesse("sante_rurale", "partielle");
+      c.seg("ruraux", { soutien: 7 });
+      c.seg("retraites", { soutien: 4 });
+      return "Trois cents maisons de santé financées, inaugurées, photographiées. Deux ans plus tard, un tiers d'entre elles cherchera encore son deuxième praticien : on peut construire un bâtiment en dix-huit mois, pas un médecin en dix-huit mois. Les cantons concernés vous savent quand même gré d'avoir essayé — c'est déjà plus que ce qu'ils accordent d'ordinaire.";
+    },
+  },
+  {
+    id: "ref_prisons",
+    nom: "Les vingt mille places de prison",
+    cout: 3,
+    promesse: "prisons",
+    detail: "Six milliards, douze ans de chantiers, zéro maire volontaire.",
+    effects: (c) => {
+      c.adj({ country: { securite: 6, marge: -8, dette: 2 }, power: { justice: 5 } });
+      c.promesse("prisons", "partielle");
+      c.seg("pavillonnaires", { soutien: 6 });
+      c.seg("retraites", { soutien: 4 });
+      c.seg("quartiers", { soutien: -4 });
+      return "Le programme est annoncé avec une carte, ce qui est une erreur : dès le lendemain, quatorze maires découvrent qu'ils étaient volontaires. Les premières places ouvriront dans huit ans. D'ici là, la surpopulation restera ce qu'elle est, et le mot « fermeté » aura servi trois fois.";
+    },
+  },
+  {
+    id: "ref_cannabis",
+    nom: "La légalisation du cannabis",
+    cout: 2,
+    promesse: "cannabis",
+    detail: "Une recette fiscale, un débat de société, deux ministères contre.",
+    effects: (c) => {
+      c.adj({ country: { marge: 5, securite: -2, cohesion: -2 } });
+      c.promesse("cannabis", "tenue");
+      c.seg("jeunes", { soutien: 8, participation: 4 });
+      c.seg("urbains", { soutien: 5 });
+      c.seg("retraites", { soutien: -6 });
+      c.seg("ruraux", { soutien: -4 });
+      c.rel("mazeau", { rancune: 10 });
+      return "Filière encadrée, monopole de distribution, taxation à 30 %. Bercy applaudit, l'Intérieur enrage, les plateaux se remplissent de médecins qui ne sont pas d'accord entre eux. Le trafic ne disparaît pas — il se déplace vers ce qui reste interdit, ce que personne n'avait promis mais que tout le monde savait.";
+    },
+  },
+  {
+    id: "ref_service_national",
+    nom: "Le service national obligatoire",
+    cout: 3,
+    promesse: "service_national",
+    detail: "Neuf mois pour huit cent mille jeunes. Dans quelles casernes ?",
+    effects: (c) => {
+      c.adj({ country: { cohesion: 6, marge: -11 }, power: { armee: 10 }, hidden: { coup: -4 } });
+      c.promesse("service_national", "partielle");
+      c.seg("retraites", { soutien: 7 });
+      c.seg("ruraux", { soutien: 5 });
+      c.seg("jeunes", { soutien: -8 });
+      return "La montée en charge est étalée sur six ans, ce qui est la façon polie de dire que la promesse ne sera pas tenue sous vous. L'état-major, à qui personne n'a demandé son avis, hérite d'une mission d'éducation civique avec des casernes vendues en 2003. Les retraités trouvent l'idée excellente ; les intéressés sont la seule classe d'âge qu'on n'a pas consultée.";
+    },
+  },
+  {
+    id: "ref_ric",
+    nom: "Le référendum d'initiative citoyenne",
+    cout: 2,
+    promesse: "ric",
+    detail: "Rendre la parole. Y compris à ceux qui vous en veulent.",
+    effects: (c) => {
+      c.promesse("ric", "tenue");
+      c.flag("ric_actif");
+      c.adj({ hidden: { agitation: -8 }, power: { popularite: 4, parti: -6 } });
+      c.seg("jeunes", { soutien: 6 });
+      c.seg("periurbain", { soutien: 7 });
+      c.dire("ric", "Le peuple n'a pas besoin d'une autorisation pour se prononcer", "à la tribune de l'Assemblée");
+      c.sched("ric_premier", 6, 12, 0.6);
+      return "Sept cent mille signatures, un contrôle de constitutionnalité, un vote. Les ronds-points saluent, les préfectures s'inquiètent, votre propre majorité fait la moue : ils ont compris avant vous que le premier référendum d'initiative citoyenne portera sur quelque chose que vous aurez fait.";
+    },
+  },
+  {
+    id: "ref_energie",
+    nom: "La renationalisation de l'énergie",
+    cout: 3,
+    promesse: "energie_publique",
+    detail: "Cent milliards et un contentieux européen.",
+    effects: (c) => {
+      c.adj({ country: { dette: 8, marge: -8, services: 5, prestige: -2 } });
+      c.promesse("energie_publique", "tenue");
+      c.seg("public", { soutien: 7 });
+      c.seg("periurbain", { soutien: 5 });
+      c.nation("commission", { relation: -12 });
+      c.dossier("energie_rachat", "Le prix payé aux actionnaires sortants", 18);
+      return "L'offre publique de rachat est lancée un dimanche soir pour éviter l'ouverture des marchés. L'État redevient propriétaire de ce qu'il avait vendu, et le repaie au prix d'aujourd'hui — c'est le principe même de la privatisation, découvert avec vingt ans de retard. Bruxelles ouvre une procédure dans la semaine.";
+    },
+  },
+  {
+    id: "ref_autoroutes",
+    nom: "La renationalisation des autoroutes",
+    cout: 3,
+    promesse: "autoroutes",
+    detail: "Quarante milliards d'indemnités. Ou une bataille de dix ans.",
+    effects: (c) => {
+      c.adj({ country: { dette: 6, marge: -7 }, power: { patronat: -10, popularite: 8 } });
+      c.promesse("autoroutes", "tenue");
+      c.seg("periurbain", { soutien: 8 });
+      c.seg("ruraux", { soutien: 6 });
+      c.sched("autoroutes_arbitrage", 6, 14, 0.55);
+      return "Les concessions sont résiliées par anticipation, ce qui déclenche mécaniquement les clauses indemnitaires négociées par vos prédécesseurs. Le péage baisse de 30 % au 1er janvier — la seule mesure de votre mandat que les Français constateront eux-mêmes, en liquide, en rentrant de vacances. Les arbitres internationaux, eux, se réunissent à Genève.";
+    },
+  },
+  {
+    id: "ref_defense",
+    nom: "Les trois pour cent pour la défense",
+    cout: 3,
+    promesse: "defense_trois",
+    detail: "Trente milliards. Pris quelque part.",
+    effects: (c) => {
+      c.adj({ country: { securite: 6, prestige: 6, marge: -12 }, power: { armee: 16 }, hidden: { coup: -8 } });
+      c.promesse("defense_trois", "tenue");
+      c.seg("ruraux", { soutien: 4 });
+      c.seg("pavillonnaires", { soutien: 4 });
+      c.seg("public", { soutien: -4 });
+      c.rel("verdier", { loyaute: 16, rancune: -8 });
+      c.toutesNations({ relation: 5 }, ["commission"]);
+      return "La loi de programmation militaire passe à trois points de PIB : munitions, drones, deuxième porte-avions, et des salaires qui retiendront enfin les techniciens. L'état-major ne vous demandera plus rien pendant cinq ans, ce qui vaut tous les conseils de défense du monde. Les trente milliards viennent d'ailleurs, et « ailleurs » a un nom dans chaque ministère.";
+    },
+  },
+  {
+    id: "ref_fin_vie",
+    nom: "L'aide active à mourir",
+    cout: 2,
+    promesse: "fin_de_vie",
+    detail: "Une fracture morale, et elle traverse votre propre camp.",
+    effects: (c) => {
+      c.adj({ country: { cohesion: -4, services: 2 }, power: { presse: 5, popularite: 4 } });
+      c.promesse("fin_de_vie", "tenue");
+      c.seg("urbains", { soutien: 6 });
+      c.seg("jeunes", { soutien: 4 });
+      c.seg("retraites", { soutien: -3 });
+      c.sched("fin_vie_debat", 3, 8, 0.6);
+      return "Le texte passe après cent quarante heures de débat, sans consigne de vote, et douze députés de votre majorité pleurent en séance — dans les deux sens. C'est le seul moment du mandat où l'Assemblée aura ressemblé à ce qu'elle prétend être. Les évêques publient une lettre ; les soignants demandent surtout des lits.";
+    },
+  },
+  {
+    id: "ref_uniforme",
+    nom: "L'uniforme à l'école",
+    cout: 1,
+    promesse: "uniforme",
+    detail: "Presque rien — et c'est bien le problème.",
+    effects: (c) => {
+      c.adj({ country: { cohesion: 2, marge: -1 }, power: { popularite: 3 } });
+      c.promesse("uniforme", "tenue");
+      c.seg("pavillonnaires", { soutien: 6 });
+      c.seg("retraites", { soutien: 5 });
+      c.seg("urbains", { soutien: -4 });
+      return "Généralisation à la rentrée, financée à moitié par les collectivités qui ne l'ont pas demandé. Trois semaines de débat national sur une polo bleu marine, pendant lesquelles personne n'a parlé du niveau en mathématiques. C'est exactement ce que la mesure sait faire, et vous le saviez en la signant.";
+    },
+  },
 ];
+
+/**
+ * Les chantiers encore engageables. Un chantier lancé ne revient jamais — on ne
+ * réforme pas deux fois les retraites dans le même mandat — et une promesse
+ * déjà soldée, tenue ailleurs ou trahie, ferme le sien.
+ */
+export function reformesOuvertes(s: GameState): ReformeDef[] {
+  return REFORMES.filter((r) => {
+    if ((s.reformesFaites ?? []).includes(r.id)) return false;
+    const p = s.promises.find((x) => x.id === r.promesse);
+    return !p || p.status === "en_cours";
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Les actions. Trois catégories :
@@ -221,6 +466,9 @@ export const ACTIONS: ActionDef[] = [
     detail: "Engager un grand chantier.",
     needParam: "reforme",
     socle: true,
+    // Quand tout a été engagé ou soldé, il n'y a plus rien à ouvrir : mieux
+    // vaut retirer la porte que de la laisser sur une pièce vide.
+    cond: (s) => reformesOuvertes(s).length > 0,
     icone: "▣",
     tone: "var(--color-monde)",
     effects: (c, param) => {
@@ -610,9 +858,13 @@ export const ACTIONS: ActionDef[] = [
     nom: "Le discours d'une vie",
     cout: 2,
     detail: "Vous avez le charisme pour ça. Ça n'arrivera pas deux fois.",
-    cond: (s) => s.player.charisme >= 70 || s.player.rhetorique >= 75,
+    // Un grand discours ne se décrète pas : il faut savoir parler, et il faut
+    // que le pays ait besoin d'entendre quelque chose.
+    cond: (s) => (s.player.charisme >= 70 || s.player.rhetorique >= 75) && (s.country.cohesion < 42 || s.hidden.agitation > 48),
     opportunite: true,
     rarete: "historique",
+    signal: "Le service des discours a ressorti un texte abandonné l'an dernier. Personne n'a demandé pourquoi maintenant.",
+    pourquoi: "Le pays se fracture, et vous êtes de ceux qui savent encore parler.",
     icone: "✷",
     tone: "var(--color-perso)",
     effects: (c) => {
@@ -629,6 +881,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.country.services < 32 || s.country.securite < 35 || s.country.cohesion < 28,
     opportunite: true,
     rarete: "rare",
+    signal: "Trois préfets ont écrit la même note la même semaine : « le service ne tiendra pas un semestre de plus ».",
+    pourquoi: "Un secteur entier est au bord de la rupture, et ça dure.",
     icone: "✚",
     tone: "var(--color-bad)",
     effects: (c) => {
@@ -645,6 +899,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.power.presse < 36,
     opportunite: true,
     rarete: "rare",
+    signal: "Deux rédactions ont décliné le même déjeuner off. Ça ne s'était pas produit depuis votre élection.",
+    pourquoi: "Voilà plusieurs semestres que le récit vous échappe entièrement.",
     icone: "◉",
     tone: "var(--color-perso)",
     effects: (c) => {
@@ -666,6 +922,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.characters["rives"]?.vivant && s.characters["rives"].loyaute >= 40 && s.power.presse < 58,
     opportunite: true,
     rarete: "exceptionnelle",
+    signal: "Le directeur de cabinet d'Antoine Rives a demandé un créneau « sans objet précis ».",
+    pourquoi: "Antoine Rives voit vos ennuis dans les rédactions, et il a le temps.",
     icone: "◈",
     tone: "var(--color-perso)",
     effects: (c) => {
@@ -690,6 +948,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.country.marge >= 22 && s.power.presse < 50,
     opportunite: true,
     rarete: "rare",
+    signal: "Un quotidien historique a repoussé le paiement de ses pigistes. Le tribunal de commerce sera saisi avant l'été.",
+    pourquoi: "Un titre centenaire coule, et vous avez encore la marge pour le tenir.",
     icone: "✑",
     tone: "var(--color-social)",
     effects: (c) => {
@@ -716,6 +976,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.hidden.agitation > 55,
     opportunite: true,
     rarete: "rare",
+    signal: "Les préfets ont cessé de compter les rassemblements ; ils comptent désormais les communes concernées.",
+    pourquoi: "Le pays gronde depuis plusieurs mois et rien ne retombe.",
     icone: "◎",
     tone: "var(--color-social)",
     effects: (c) => {
@@ -737,6 +999,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.derive >= 3,
     opportunite: true,
     rarete: "exceptionnelle",
+    signal: "Une liste de directions « à revoir » a été laissée sur votre bureau. Elle n'est signée de personne.",
+    pourquoi: "Votre entourage a fini par comprendre que vous ne diriez plus non.",
     icone: "⚔",
     tone: "var(--color-bad)",
     effects: (c) => {
@@ -791,6 +1055,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => Math.abs(s.bord) >= 7 && s.derive >= 3,
     opportunite: true,
     rarete: "exceptionnelle",
+    signal: "Une note recensant les fonctionnaires « en désaccord de fond » circule dans les ministères. Elle est arrivée à vous en dernier.",
+    pourquoi: "Votre ligne est assumée depuis assez longtemps pour que l'appareil d'État se divise.",
     icone: "⚑",
     tone: "var(--color-bad)",
     effects: (c) => {
@@ -807,9 +1073,11 @@ export const ACTIONS: ActionDef[] = [
     nom: "Lancer la grande cause du mandat",
     cout: 2,
     detail: "Un sujet, cinq ans, votre nom dessus.",
-    cond: (s) => s.turn <= 4 && !s.flags["grande_cause"],
+    cond: (s) => s.turn <= 5 && !s.flags["grande_cause"],
     opportunite: true,
     rarete: "rare",
+    signal: "Trois cabinets ministériels vous ont soumis la même idée de « grande cause du mandat ». Aucun ne s'est concerté.",
+    pourquoi: "Un mandat qui commence peut encore choisir ce dont on se souviendra.",
     icone: "✶",
     tone: "var(--color-env)",
     effects: (c) => {
@@ -830,6 +1098,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.country.inflation > 5.5,
     opportunite: true,
     rarete: "rare",
+    signal: "Les relevés de la Répression des fraudes tiennent en une phrase : tout monte, partout, depuis six mois.",
+    pourquoi: "L'inflation ne redescend pas, et ça se lit dans les rayons.",
     icone: "◈",
     tone: "var(--color-eco)",
     effects: (c) => {
@@ -852,6 +1122,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.country.dette > 145 || s.country.marge < 18,
     opportunite: true,
     rarete: "exceptionnelle",
+    signal: "Le Trésor a placé sa dernière adjudication plus cher que prévu. Bercy parle de « conditions de marché ».",
+    pourquoi: "L'État emprunte cher depuis plusieurs semestres, et tout le monde le sait.",
     icone: "▤",
     tone: "var(--color-eco)",
     effects: (c) => {
@@ -873,6 +1145,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.country.chomage > 11.5,
     opportunite: true,
     rarete: "rare",
+    signal: "L'opérateur de l'emploi a révisé sa série longue : la courbe ne redescend plus depuis dix-huit mois.",
+    pourquoi: "Le chômage s'installe, et l'État sait encore commander des chantiers.",
     icone: "⚒",
     tone: "var(--color-eco)",
     effects: (c) => {
@@ -894,6 +1168,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.country.croissance > 2.4 && s.country.marge > 52,
     opportunite: true,
     rarete: "exceptionnelle",
+    signal: "Bercy révise ses recettes à la hausse pour le troisième trimestre d'affilée. Danglade n'en a parlé à personne.",
+    pourquoi: "La croissance tient et les caisses sont pleines — ça n'arrive presque jamais.",
     icone: "✧",
     tone: "var(--color-eco)",
     effects: (c) => {
@@ -912,9 +1188,13 @@ export const ACTIONS: ActionDef[] = [
     nom: "Prendre la médiation",
     cout: 2,
     detail: "Deux puissances se parlent enfin. Elles cherchent une table.",
-    cond: (s) => s.country.prestige > 68,
+    // Personne ne médie une guerre qui n'a pas éclaté : l'occasion n'existe pas
+    // tant que « la guerre des autres » n'a pas eu lieu dans cette partie-ci.
+    declencheur: "guerre_ouverte",
+    cond: (s) => s.country.prestige > 58,
     opportunite: true,
     rarete: "historique",
+    pourquoi: "La guerre des Deux Fleuves s'enlise, et les deux camps cherchent une table.",
     icone: "☮",
     tone: "var(--color-monde)",
     effects: (c) => {
@@ -939,6 +1219,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.country.prestige < 32,
     opportunite: true,
     rarete: "exceptionnelle",
+    signal: "Deux capitales ont décliné une visite d'État « faute de créneau ». Le Quai n'a pas insisté.",
+    pourquoi: "La France ne pèse plus rien, et cela dure depuis plusieurs semestres.",
     icone: "✈",
     tone: "var(--color-monde)",
     effects: (c) => {
@@ -958,6 +1240,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.power.syndicats < 26 && s.hidden.agitation > 45,
     opportunite: true,
     rarete: "exceptionnelle",
+    signal: "Les fédérations n'ont pas claqué la porte de la concertation : elles ne sont simplement pas revenues.",
+    pourquoi: "Les syndicats sont partis et la rue ne désemplit plus.",
     icone: "⚖",
     tone: "var(--color-social)",
     effects: (c) => {
@@ -977,6 +1261,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.power.patronat < 28,
     opportunite: true,
     rarete: "rare",
+    signal: "Trois grands groupes ont annoncé leurs investissements depuis Francfort. Le lieu était le message.",
+    pourquoi: "Le patronat vous a lâché, et il le fait savoir depuis des mois.",
     icone: "◧",
     tone: "var(--color-eco)",
     effects: (c) => {
@@ -995,6 +1281,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.power.parti < 32,
     opportunite: true,
     rarete: "exceptionnelle",
+    signal: "Une motion circule dans deux fédérations. Personne ne la signe encore, tout le monde l'a lue.",
+    pourquoi: "Le parti vous échappe, fédération après fédération.",
     icone: "♟",
     tone: "var(--color-pouvoir)",
     effects: (c) => {
@@ -1019,6 +1307,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.player.integrite > 74 && s.power.justice > 45,
     opportunite: true,
     rarete: "exceptionnelle",
+    signal: "Le président de la Haute Autorité a demandé un rendez-vous « pour évoquer l'avenir de sa maison ».",
+    pourquoi: "Votre réputation est intacte depuis assez longtemps pour qu'on vous croie.",
     icone: "§",
     tone: "var(--color-secu)",
     effects: (c) => {
@@ -1041,6 +1331,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.power.popularite < 24,
     opportunite: true,
     rarete: "exceptionnelle",
+    signal: "Un institut a renoncé à publier votre cote : « à ce niveau, la marge d'erreur n'a plus de sens ».",
+    pourquoi: "Vous êtes au plancher depuis plusieurs semestres. Il n'y a plus rien à ménager.",
     icone: "◉",
     tone: "var(--color-perso)",
     effects: (c) => {
@@ -1063,6 +1355,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.hidden.sante < 45,
     opportunite: true,
     rarete: "exceptionnelle",
+    signal: "Le Dr Manin a demandé à voir votre directeur de cabinet. Pas vous.",
+    pourquoi: "Votre santé se dégrade depuis un moment, et cela commence à se voir.",
     icone: "✚",
     tone: "var(--color-perso)",
     effects: (c) => {
@@ -1084,6 +1378,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.hidden.fatigue > 78,
     opportunite: true,
     rarete: "rare",
+    signal: "Votre chef de cabinet a bloqué trois jours dans l'agenda, sans intitulé. Il ne vous l'a pas dit.",
+    pourquoi: "Vous tenez debout à la seule volonté depuis trop longtemps.",
     icone: "☾",
     tone: "var(--color-env)",
     effects: (c) => {
@@ -1101,6 +1397,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.hidden.coup > 50,
     opportunite: true,
     rarete: "exceptionnelle",
+    signal: "Une promotion d'officiers supérieurs a été gelée sans explication — par l'état-major lui-même.",
+    pourquoi: "Les signaux venus des casernes ne se démentent plus depuis des mois.",
     icone: "⚔",
     tone: "var(--color-bad)",
     effects: (c) => {
@@ -1127,6 +1425,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.country.environnement < 32,
     opportunite: true,
     rarete: "rare",
+    signal: "L'agence de l'environnement a publié son rapport un vendredi soir. Il est accablant ; personne ne l'a lu.",
+    pourquoi: "Les indicateurs environnementaux sont au rouge et y restent.",
     icone: "❧",
     tone: "var(--color-env)",
     effects: (c) => {
@@ -1149,6 +1449,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.country.environnement > 68 && s.country.prestige > 55,
     opportunite: true,
     rarete: "historique",
+    signal: "Trois pays ont demandé la traduction de vos textes de loi. Ça ne s'était jamais vu dans ce sens-là.",
+    pourquoi: "La France tient une avance qu'on lui reconnaît enfin, et depuis assez longtemps.",
     icone: "✦",
     tone: "var(--color-env)",
     effects: (c) => {
@@ -1168,6 +1470,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.country.cohesion > 68 && s.power.popularite > 58,
     opportunite: true,
     rarete: "historique",
+    signal: "Deux chefs de l'opposition ont accepté le même déjeuner. Séparément, mais le même.",
+    pourquoi: "Le pays est rassemblé et vous êtes haut : cette fenêtre-là ne reste jamais ouverte.",
     icone: "⚭",
     tone: "var(--color-pouvoir)",
     effects: (c) => {
@@ -1188,6 +1492,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.power.popularite > 60 && s.power.sieges < 289,
     opportunite: true,
     rarete: "historique",
+    signal: "Vos sondeurs ont testé une hypothèse que vous n'aviez pas commandée : des législatives anticipées.",
+    pourquoi: "Vous êtes haut dans l'opinion et court en sièges — la tentation est arithmétique.",
     icone: "⚑",
     tone: "var(--color-pouvoir)",
     effects: (c) => {
@@ -1266,6 +1572,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.country.influence > 62,
     opportunite: true,
     rarete: "exceptionnelle",
+    signal: "Trois chancelleries ont fait savoir qu'elles seraient « disponibles » si Paris convoquait quelque chose.",
+    pourquoi: "Votre influence au Conseil est haute et le reste.",
     icone: "✦",
     tone: "var(--color-monde)",
     effects: (c) => {
@@ -1284,6 +1592,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => alliees(s).filter((d) => !d.institution && !d.horsUnion).length >= 2 && !s.flags["bloc_forme"],
     opportunite: true,
     rarete: "historique",
+    signal: "Deux capitales amies ont voté comme vous trois fois de suite. Le Quai commence à écrire le mot « famille ».",
+    pourquoi: "Deux capitales au moins vous suivent durablement — assez pour bâtir quelque chose.",
     icone: "◈",
     tone: "var(--color-monde)",
     effects: (c) => {
@@ -1306,6 +1616,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => majorite(s) < 46,
     opportunite: true,
     rarete: "rare",
+    signal: "Le secrétariat du Conseil a inscrit votre point en fin d'ordre du jour. Deux fois de suite.",
+    pourquoi: "Vous êtes minoritaire au Conseil, et vous le restez.",
     icone: "⊘",
     tone: "var(--color-bad)",
     effects: (c) => {
@@ -1325,6 +1637,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => alliees(s).some((d) => d.traits.includes("industrielle")),
     opportunite: true,
     rarete: "rare",
+    signal: "Un projet d'accord commercial est arrivé par voie non officielle. Il est déjà entièrement rédigé.",
+    pourquoi: "Une capitale industrielle vous suit depuis assez longtemps pour vouloir signer.",
     icone: "◧",
     tone: "var(--color-eco)",
     effects: (c) => {
@@ -1348,6 +1662,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => hostiles(s).some((d) => !d.institution),
     opportunite: true,
     rarete: "exceptionnelle",
+    signal: "Un poste douanier a retenu trois camions français « pour vérification ». Puis six. Puis onze.",
+    pourquoi: "Une capitale hostile vous cherche depuis plusieurs semestres.",
     icone: "⚔",
     tone: "var(--color-bad)",
     effects: (c) => {
@@ -1371,6 +1687,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => (s.power.parti < 48 || s.derive >= 2) && !s.europe.dossiers.some((d) => d.id === "circuit"),
     opportunite: true,
     rarete: "exceptionnelle",
+    signal: "Le trésorier du parti a demandé à vous voir. Il a précisé : seul.",
+    pourquoi: "Le parti manque d'argent depuis des mois, et quelqu'un connaît un chemin.",
     icone: "◐",
     tone: "var(--color-bad)",
     effects: (c) => {
@@ -1393,6 +1711,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => (s.country.dette > 128 || s.country.marge < 26) && !s.europe.dossiers.some((d) => d.id === "comptes"),
     opportunite: true,
     rarete: "exceptionnelle",
+    signal: "Un cabinet d'audit s'est présenté à Bercy sans qu'on sache très bien qui l'avait mandaté.",
+    pourquoi: "Les comptes ne passeront pas Bruxelles, et ça n'arrive pas depuis hier.",
     icone: "▤",
     tone: "var(--color-bad)",
     effects: (c) => {
@@ -1414,6 +1734,8 @@ export const ACTIONS: ActionDef[] = [
     cond: (s) => s.derive >= 5 && s.power.armee > 45 && !s.europe.dossiers.some((d) => d.id === "operation"),
     opportunite: true,
     rarete: "historique",
+    signal: "Un colonel du service Action a demandé une audience par un canal qui n'existe pas officiellement.",
+    pourquoi: "On ne vous propose ça que quand on est sûr que vous direz peut-être oui.",
     icone: "☠",
     tone: "var(--color-bad)",
     effects: (c) => {
@@ -1426,6 +1748,149 @@ export const ACTIONS: ActionDef[] = [
       c.sched("operation_suite", 2, 5, 0.8);
       c.log("Vous avez autorisé une opération clandestine hors du territoire.");
       return "La chemise contient quatre pages et une photographie. Soubeyran ne dit pas le mot, il dit « neutralisation d'une capacité de nuisance », et il attend. Vous signez en bas à droite. Onze jours plus tard, un fait divers à l'étranger occupe deux colonnes puis disparaît. Vous êtes désormais quelqu'un que trois personnes peuvent détruire d'une phrase.";
+    },
+  },
+
+  // --- Les occasions que seule la folie ouvre -------------------------------
+  // Aucune conjonction de jauges ne les fait apparaître : il a fallu qu'un des
+  // accidents de `folie.ts` survienne, et qu'on ait choisi d'y entrer. Ce sont
+  // les seules portes du jeu qu'on ne peut pas viser — seulement saisir.
+  {
+    id: "employer_sosie",
+    nom: "Faire travailler l'autre",
+    cout: 1,
+    detail: "Il inaugure mieux que vous. Autant que ce soit officiel.",
+    declencheur: "sosie_rencontre",
+    opportunite: true,
+    rarete: "historique",
+    pourquoi: "Un homme fait le métier à votre place dans quatre départements, et il le fait bien.",
+    icone: "☍",
+    tone: "var(--color-perso)",
+    effects: (c) => {
+      c.derive(1);
+      c.adj({ power: { popularite: 9 }, hidden: { fatigue: -22, paranoia: 10 }, player: { integrite: -8 } });
+      c.seg("ruraux", { soutien: 8 });
+      c.seg("periurbain", { soutien: 6 });
+      c.dossier("sosie_employe", "L'homme payé pour être le Président en province", 46);
+      c.sched("sosie_revelation", 4, 12, 0.45);
+      c.log("Vous avez employé votre sosie pour tenir une partie de vos déplacements.");
+      return "Contrat de prestation avec une société écran, quarante-deux déplacements en dix-huit mois, et un agenda présidentiel enfin tenable. Marcel serre les mains mieux que vous, écoute plus longtemps, et personne ne s'aperçoit jamais de rien. Les remontées de terrain sont excellentes. Vous dormez pour la première fois depuis l'investiture, et vous savez très exactement ce que vous venez de faire à la fonction.";
+    },
+  },
+  {
+    id: "publier_manuscrit",
+    nom: "Publier le livre",
+    cout: 2,
+    detail: "Quatre cent dix pages écrites la nuit. Roze vous a dit de ne pas.",
+    declencheur: "manuscrit_nocturne",
+    opportunite: true,
+    rarete: "historique",
+    pourquoi: "Vous avez écrit quelque chose que personne n'attendait, et il dort dans un tiroir.",
+    icone: "✎",
+    tone: "var(--color-perso)",
+    effects: (c) => {
+      const chef = c.s.player.rhetorique + c.s.player.integrite / 2 + c.rng.int(-20, 25) > 78;
+      c.dire("le_livre", "J'ai écrit ce que je pense, en entier, et je n'en retire rien", "à la parution");
+      if (chef) {
+        c.adj({ country: { prestige: 10, cohesion: 4 }, power: { presse: 12, popularite: 6 }, player: { integrite: 6 } });
+        c.seg("urbains", { soutien: 8 });
+        c.seg("jeunes", { soutien: 5 });
+        c.log("Vous avez publié un livre qui a changé la façon dont le pays vous lit.");
+        return "Deux cent mille exemplaires en trois semaines, traduit en onze langues avant Noël, et des passages appris par cœur par des gens qui n'ont pas voté pour vous. Ce n'est pas un livre de président : c'est un livre, et il se trouve qu'un président l'a écrit. Vos adversaires y cherchent des contradictions pendant six mois et finissent par en citer des phrases sans le dire.";
+      }
+      c.adj({ country: { prestige: -4 }, power: { presse: -10, popularite: -9, parti: -8 }, hidden: { paranoia: 8 } });
+      c.seg("pavillonnaires", { soutien: -6 });
+      c.press("« LES CENT DERNIÈRES PAGES » — les extraits les plus sombres publiés en fac-similé", "hostile");
+      c.log("Votre livre a été retourné contre vous, page après page.");
+      return "Les cent premières pages sont admirables et personne n'en parlera. Les cent dernières — celles que Camille Roze vous avait dit de brûler — sont épluchées ligne à ligne pendant trois semaines. Vous y écrivez ce que vous pensez vraiment du pays certains soirs de fatigue. On ne pardonne pas ça à un président, même quand c'est vrai. Surtout quand c'est vrai.";
+    },
+  },
+  {
+    id: "conseil_des_ombres",
+    nom: "Gouverner avec les morts",
+    cout: 2,
+    detail: "La voix ne s'est pas trompée jusqu'ici. Lui laisser une chaise.",
+    declencheur: "voix_gardees",
+    opportunite: true,
+    rarete: "historique",
+    pourquoi: "Vous entendez quelque chose depuis des mois, et ce quelque chose a raison.",
+    icone: "☾",
+    tone: "var(--color-bad)",
+    effects: (c) => {
+      c.derive(3);
+      c.adj({ hidden: { paranoia: 26, fatigue: -8 }, power: { popularite: 5 }, player: { strategie: 8, cynisme: 6 } });
+      c.rel("roze", { loyaute: -12, rancune: 8 });
+      c.rel("rochefort", { loyaute: -8 });
+      c.flag("conseil_ombres");
+      c.sched("ombres_suite", 3, 8, 0.6);
+      c.log("Vous avez commencé à prendre vos décisions ailleurs qu'en conseil.");
+      return "Vous décalez les arbitrages d'une heure, seul, dans la salle des cartes, où la voix vient plus facilement. Vos décisions de ce semestre sont les meilleures du mandat — tous vos conseillers le disent, aucun ne sait comment elles ont été prises. Camille Roze demande deux fois à assister à « ces réunions du soir ». Vous répondez deux fois que ce n'est pas une réunion, ce qui est parfaitement exact.";
+    },
+  },
+  {
+    id: "revelation_ciel",
+    nom: "Tout déclassifier",
+    cout: 2,
+    detail: "Onze dossiers depuis 1954. Les rendre publics le même jour.",
+    declencheur: "objet_ciel",
+    opportunite: true,
+    rarete: "historique",
+    pourquoi: "Vous savez ce que l'armée sait, et vous êtes seul à pouvoir en décider.",
+    icone: "✦",
+    tone: "var(--color-monde)",
+    effects: (c) => {
+      c.adj({
+        country: { prestige: 8, cohesion: -6, influence: 6 },
+        power: { armee: -12, presse: 10, popularite: 8 },
+        hidden: { agitation: 8, paranoia: 6 },
+      });
+      c.rel("verdier", { rancune: 18, loyaute: -14 });
+      c.seg("jeunes", { soutien: 10, participation: 6 });
+      c.toutesNations({ savoir: 6, relation: -4 }, []);
+      c.press("« LA FRANCE OUVRE SES ARCHIVES » — la conférence de presse la plus regardée de l'histoire de la Ve", "favorable");
+      c.log("Vous avez déclassifié soixante-dix ans d'archives sur les phénomènes non identifiés.");
+      return "Quatre mille pages en ligne à 14 h, sans tri, sans résumé, sans commentaire officiel. Aucune petite créature verte : onze cas honnêtement documentés, quatre survols de sites nucléaires, et l'aveu écrit qu'on n'a jamais su. Le monde entier lit du français pendant une semaine. L'état-major ne vous le pardonnera pas, trois alliés demandent des explications, et la jeunesse d'un pays entier découvre qu'un État peut dire « nous ne savons pas » sans s'effondrer.";
+    },
+  },
+  {
+    id: "mascotte_nationale",
+    nom: "La tournée du chat",
+    cout: 1,
+    detail: "81 % d'opinions favorables. Ne pas s'en servir serait une faute.",
+    declencheur: "chat_etat",
+    opportunite: true,
+    rarete: "historique",
+    pourquoi: "Le chat de l'Élysée est la seule chose du pays sur laquelle tout le monde est d'accord.",
+    icone: "❦",
+    tone: "var(--color-env)",
+    effects: (c) => {
+      c.adj({ power: { popularite: 11, presse: -6 }, country: { cohesion: 5 }, hidden: { agitation: -6 } });
+      c.seg("jeunes", { soutien: 9, participation: 5 });
+      c.seg("retraites", { soutien: 5 });
+      c.seg("urbains", { soutien: -3 });
+      c.rel("ferrand", { rancune: 10 });
+      c.log("Le chat de l'Élysée est devenu le premier ambassadeur de la République.");
+      return "Trente-deux écoles, quatre hôpitaux, une visite d'État où il figure au programme officiel entre le dépôt de gerbe et le déjeuner. Les images sont irrésistibles et parfaitement dépolitisées, ce qui est exactement leur fonction. Louise Ferrand ouvre son édito par « Nous avons un problème » et l'illustre avec la meilleure photo de la série. Le pays va mal et se sent bien : personne n'avait réussi ça depuis longtemps.";
+    },
+  },
+  {
+    id: "bureau_prospective",
+    nom: "Le bureau du 7e étage",
+    cout: 2,
+    detail: "Sa méthode est vérifiable. La confier à l'État.",
+    declencheur: "prophete_recu",
+    opportunite: true,
+    rarete: "historique",
+    pourquoi: "Un homme prévoit ce que vos administrations n'ont jamais su prévoir.",
+    icone: "◈",
+    tone: "var(--color-secu)",
+    effects: (c) => {
+      c.adj({ player: { strategie: 10 }, country: { marge: -2 }, power: { presse: -4 }, hidden: { paranoia: 8 } });
+      c.flag("bureau_prospective");
+      c.rel("ternay", { rancune: 10, loyaute: -6 });
+      c.sched("prospective_premier_rapport", 3, 7, 0.7);
+      c.log("Vous avez confié une cellule de prospective à un inconnu qui avait eu raison deux fois.");
+      return "Quatre personnes, un budget minuscule, aucun statut, et un bureau sans plaque au septième étage d'un immeuble de la rue de Varenne. Ils croisent des rapports publics que personne ne lit et rendent une note de six pages par mois. La première annonce une faillite industrielle que Bercy jugeait impossible ; elle survient onze semaines plus tard. Yves Ternay, dont c'était le métier depuis trente ans, demande poliment à qui ces gens rendent compte. Vous n'avez pas de réponse.";
     },
   },
 ];
