@@ -22,7 +22,7 @@ export const EVENTS_ASCENSION: GameEvent[] = [
         effects: (c) => {
           c.adj({ player: { charisme: 3 } });
           c.flag("maire_proximite");
-          return "Le gymnase rouvre en fanfare. Vous serrez quatre cents mains. On dira de vous : « au moins, il fait des choses ». C'est une réputation qui vaut de l'or, et vous venez d'apprendre comment elle se fabrique.";
+          return "Le gymnase rouvre en fanfare, quatre cents mains serrées. « Au moins, il fait des choses. » Vous venez d'apprendre comment se fabrique une réputation.";
         },
       },
       {
@@ -32,7 +32,7 @@ export const EVENTS_ASCENSION: GameEvent[] = [
         effects: (c) => {
           c.adj({ player: { strategie: 3 } });
           c.flag("maire_gestionnaire");
-          return "Deux ans de terrassement et de sarcasmes au conseil municipal. Puis trois entreprises s'installent, et quatre-vingts emplois. Vous venez d'apprendre la leçon la plus dure du métier : le temps politique et le temps réel ne battent pas à la même vitesse.";
+          return "Deux ans de terrassement et de sarcasmes. Puis trois entreprises, quatre-vingts emplois. La leçon la plus dure du métier : le temps politique et le temps réel ne battent pas à la même vitesse.";
         },
       },
       {
@@ -52,7 +52,7 @@ export const EVENTS_ASCENSION: GameEvent[] = [
     kind: "ascension",
     titre: "L'entrepreneur",
     texte:
-      "Le marché de la zone d'activité attire les convoitises. Un entrepreneur de travaux publics vous invite à dîner. Au dessert, il évoque « une participation aux frais de votre prochaine campagne » si l'appel d'offres était « bien rédigé ». Il sourit. Le café arrive.",
+      "Un entrepreneur de travaux publics vous invite à dîner. Au dessert, il évoque « une participation aux frais de votre prochaine campagne » si l'appel d'offres était « bien rédigé ». Il sourit. Le café arrive.",
     choices: [
       {
         id: "refus",
@@ -71,7 +71,7 @@ export const EVENTS_ASCENSION: GameEvent[] = [
         effects: (c) => {
           c.adj({ player: { cynisme: 3, strategie: 2 } });
           c.flag("zone_flou");
-          return "Vous souriez, vous parlez d'autre chose. L'appel d'offres suivra la procédure — à peu près. L'entrepreneur versera quelque chose — indirectement. Vous n'avez rien signé, rien promis, rien refusé. C'est exactement ce genre de zone grise que les juges d'instruction adorent éclairer, des années plus tard.";
+          return "Vous souriez, vous parlez d'autre chose. L'appel d'offres suivra la procédure — à peu près. Rien signé, rien promis, rien refusé : exactement le genre de zone grise que les juges d'instruction adorent éclairer, des années plus tard.";
         },
       },
       {
@@ -81,7 +81,7 @@ export const EVENTS_ASCENSION: GameEvent[] = [
         effects: (c) => {
           c.adj({ player: { integrite: -8, cynisme: 5, reseau: 3 } });
           c.flag("pot_de_vin_ascension");
-          return "L'enveloppe transite par une association de financement dont vous préférez ignorer les statuts. Votre prochaine campagne sera confortable. Quelque part, dans un carnet que vous ne verrez jamais, une ligne vient de s'écrire à votre nom.";
+          return "L'enveloppe transite par une association dont vous préférez ignorer les statuts. Quelque part, dans un carnet que vous ne verrez jamais, une ligne vient de s'écrire à votre nom.";
         },
       },
     ],
@@ -101,7 +101,7 @@ export const EVENTS_ASCENSION: GameEvent[] = [
           c.adj({ power: { parti: 10 } });
           c.rel("espitalier", { loyaute: 10 });
           c.rel("delval", { rancune: 5 });
-          return "Votre motion l'emporte largement. L'appareil vous ouvre ses portes, ses fichiers, ses fédérations. Le jeune Sacha Delval, qui portait la motion adverse, vient vous serrer la main avec un sourire qui ne monte pas jusqu'aux yeux.";
+          return "Victoire large. L'appareil vous ouvre ses fichiers et ses fédérations. Sacha Delval, qui portait la motion adverse, vient vous serrer la main avec un sourire qui ne monte pas jusqu'aux yeux.";
         },
       },
       {
@@ -121,7 +121,7 @@ export const EVENTS_ASCENSION: GameEvent[] = [
         detail: "Ni vainqueur ni vaincu. Un texte que personne n'aime et que tout le monde vote.",
         effects: (c) => {
           c.adj({ player: { strategie: 5, cynisme: 2 } });
-          return "Votre texte de synthèse est d'une platitude remarquable. Il est adopté à 91 %. Vous venez de découvrir un secret de la politique française : on ne gagne pas un congrès avec des idées, on le gagne avec un texte que personne ne peut refuser.";
+          return "Votre texte est d'une platitude remarquable. Adopté à 91 %. On ne gagne pas un congrès avec des idées : on le gagne avec un texte que personne ne peut refuser.";
         },
       },
     ],
@@ -141,7 +141,7 @@ export const EVENTS_ASCENSION: GameEvent[] = [
           c.adj({ power: { parti: 5 } });
           c.rel("delval", { rancune: 5, ambition: 5 });
           c.flag("primaire_gagnee", "experience");
-          return "« Gouverner, ça s'apprend — et ça ne s'apprend pas en gouvernant. » La formule fait mouche. Vous l'emportez 58-42. Delval reconnaît sa défaite avec une élégance parfaite, ce qui est toujours mauvais signe chez un ambitieux.";
+          return "« Gouverner, ça s'apprend — et pas en gouvernant. » 58-42. Delval reconnaît sa défaite avec une élégance parfaite : toujours mauvais signe chez un ambitieux.";
         },
       },
       {
@@ -152,7 +152,7 @@ export const EVENTS_ASCENSION: GameEvent[] = [
           c.adj({ player: { cynisme: 3 } });
           c.rel("delval", { rancune: 20, loyaute: -15 });
           c.flag("primaire_gagnee", "brutale");
-          return "Vous le démontez méthodiquement, en public, pendant une heure dix. Victoire 63-37. Le parti est à vous. Mais ce soir-là, quelque chose s'est cassé chez Delval — et les choses cassées, en politique, finissent toujours par ressortir.";
+          return "Vous le démontez méthodiquement pendant une heure dix. 63-37, le parti est à vous. Mais ce soir-là quelque chose s'est cassé chez Delval — et les choses cassées finissent toujours par ressortir.";
         },
       },
       {
@@ -194,7 +194,7 @@ export const EVENTS_ASCENSION: GameEvent[] = [
           c.flag("carnets_armes");
           c.rel("espitalier", { loyaute: 10 });
           c.sched("carnets_1", 6, 14, 0.4);
-          return "Espitalier hoche la tête lentement. « Tu ne sauras rien. » Le classeur disparaît. La campagne sera large, fluide, financée. Quelque part, un intermédiaire ouvre un compte, et un carnet s'épaissit. Vous n'y penserez plus. Lui, si.";
+          return "« Tu ne sauras rien. » Le classeur disparaît. La campagne sera large, fluide, financée. Un intermédiaire ouvre un compte, un carnet s'épaissit. Vous n'y penserez plus. Lui, si.";
         },
       },
     ],

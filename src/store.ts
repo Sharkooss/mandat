@@ -5,13 +5,16 @@ import { makeInitialState, applyBio, rngOf } from "./engine/init";
 import { randomSeed } from "./engine/rng";
 import { makeCtx } from "./engine/ctx";
 import { getEvent, getCrise } from "./engine/registry";
-import { genBriefing, selectTurnEvents, endOfTurn } from "./engine/turn";
+import { genBriefing, selectTurnEvents, endOfTurn, updateTrends } from "./engine/turn";
 import { applyCampaignAction, makeCampaign, resolveElection, runDebate } from "./engine/campaign";
 import { ASCENSION_SEQUENCE } from "./content/france/ascension";
 import { EVENTS_CAMPAGNE } from "./content/france/campagne";
 import { ACTIONS, REFORMES } from "./content/france/actions";
 import { buildEnding, checkEndings, type EndingCause } from "./content/france/fins";
-import { PRENOMS_F, PRENOMS_M, NOMS, REGIONS, MILIEUX, FORMATIONS, EVENEMENTS_FONDATEURS, MENTORS } from "./content/france/data";
+import { computeDeltas, computeSignals, snapshot } from "./engine/deltas";
+import { PRENOMS_F, PRENOMS_M, NOMS, REGIONS, MILIEUX, FORMATIONS, EVENEMENTS_FONDATEURS, MENTORS, SEGMENTS } from "./content/france/data";
+
+const SEG_NOMS: Record<string, string> = Object.fromEntries(SEGMENTS.map((s) => [s.id, s.nom]));
 
 export interface PantheonEntry {
   nom: string;
@@ -76,6 +79,7 @@ function startTurn(s: GameState): void {
   if (s.hidden.sante < 40) pc -= 1;
   s.pc = Math.max(1, pc);
   s.pcMax = s.pc;
+  updateTrends(s);
   genBriefing(s, rng);
   selectTurnEvents(s, rng);
   s.phase = "briefing";
@@ -199,7 +203,10 @@ export const useGame = create<Store>()(
         if (!choice) return;
         const rng = rngOf(s);
         const ctx = makeCtx(s, rng);
+        const avant = snapshot(s);
         s.resolution = choice.effects(ctx);
+        s.lastDeltas = computeDeltas(avant, s, SEG_NOMS);
+        s.lastSignals = computeSignals(avant, s);
         s.rngCalls = rng.state();
         set({ game: s });
       },
@@ -207,6 +214,8 @@ export const useGame = create<Store>()(
       continueAfter: () => {
         const s = clone(get().game!);
         s.resolution = null;
+        s.lastDeltas = [];
+        s.lastSignals = [];
 
         // Une crise vient-elle d'être déclenchée ?
         const criseId = s.flags["crise_a_lancer"];
@@ -300,7 +309,10 @@ export const useGame = create<Store>()(
         if (cout > s.pc) return;
         const rng = rngOf(s);
         const ctx = makeCtx(s, rng);
+        const avant = snapshot(s);
         s.resolution = action.effects(ctx, param);
+        s.lastDeltas = computeDeltas(avant, s, SEG_NOMS);
+        s.lastSignals = computeSignals(avant, s);
         s.pc -= cout;
         s.actionsUsed.push(actionId === "reforme" ? `reforme:${param}` : actionId);
         s.rngCalls = rng.state();
@@ -329,7 +341,10 @@ export const useGame = create<Store>()(
         const s = clone(get().game!);
         const c = s.campaign!;
         const rng = rngOf(s);
+        const avant = snapshot(s);
         s.resolution = applyCampaignAction(s, rng, actionId, segmentId);
+        s.lastDeltas = computeDeltas(avant, s, SEG_NOMS);
+        s.lastSignals = computeSignals(avant, s);
 
         // Un événement de campagne peut surgir.
         if (rng.chance(0.3)) {
@@ -350,7 +365,10 @@ export const useGame = create<Store>()(
       doDebate: (beats) => {
         const s = clone(get().game!);
         const rng = rngOf(s);
+        const avant = snapshot(s);
         s.resolution = runDebate(s, rng, beats);
+        s.lastDeltas = computeDeltas(avant, s, SEG_NOMS);
+        s.lastSignals = computeSignals(avant, s);
         s.rngCalls = rng.state();
         set({ game: s });
       },

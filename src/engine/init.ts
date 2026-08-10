@@ -49,6 +49,10 @@ export function makeInitialState(seed: number): GameState {
     queue: [],
     currentEvent: null,
     resolution: null,
+    lastDeltas: [],
+    lastSignals: [],
+    trends: {},
+    trendBase: {},
     press: [],
     pressArchive: [],
     log: [],
@@ -80,6 +84,8 @@ export function applyBio(s: GameState, bio: Bio): void {
     case "marseille": p.rhetorique += 8; s.flags["amities_marseille"] = true; break;
     case "est": s.country.prestige += 4; p.charisme -= 3; p.strategie += 5; break;
     case "outremer": s.country.cohesion += 6; s.flags["outremer"] = true; s.power.popularite += 4; break;
+    case "exil": s.country.prestige += 8; p.reseau += 8; p.charisme -= 5; s.flags["enfance_etranger"] = true; break;
+    case "montagne": p.endurance += 8; s.country.environnement += 4; seg("ruraux", 8); break;
   }
 
   switch (bio.milieuId) {
@@ -88,6 +94,8 @@ export function applyBio(s: GameState, bio: Bio): void {
     case "commercant": p.strategie += 4; seg("independants", 8); break;
     case "bourgeois": p.reseau += 8; p.cynisme += 6; seg("quartiers", -4); break;
     case "agricole": p.endurance += 8; seg("ruraux", 8); break;
+    case "enseignant": p.rhetorique += 6; seg("public", 5); seg("urbains", 5); break;
+    case "immigre": p.endurance += 6; seg("quartiers", 10); seg("jeunes", 5); seg("ruraux", -3); s.flags["parents_immigres"] = true; break;
   }
 
   switch (bio.formationId) {
@@ -96,6 +104,8 @@ export function applyBio(s: GameState, bio: Bio): void {
     case "eco": p.strategie += 6; s.flags["credibilite_budget"] = true; break;
     case "militaire": p.endurance += 8; s.power.armee += 12; s.flags["passe_militaire"] = true; break;
     case "autodidacte": p.charisme += 8; p.endurance += 4; p.reseau -= 6; break;
+    case "medecin": p.integrite += 8; s.country.services += 4; s.flags["credibilite_sante"] = true; seg("public", 6); break;
+    case "syndicale": p.charisme += 6; s.power.syndicats += 12; s.power.patronat -= 8; break;
   }
 
   switch (bio.evenementId) {
@@ -104,6 +114,8 @@ export function applyBio(s: GameState, bio: Bio): void {
     case "attentat": s.flags["survivant_attentat"] = true; s.player.endurance += 4; break;
     case "these": p.strategie += 4; p.reseau += 4; s.flags["these_arrangee"] = true; break;
     case "campagne_perdue": p.strategie += 6; p.cynisme += 4; break;
+    case "greve_faim": p.charisme += 10; p.endurance += 6; s.hidden.sante -= 12; s.flags["cause_sociale"] = true; break;
+    case "sauvetage": s.power.popularite += 8; p.charisme += 6; s.flags["heros_ordinaire"] = true; break;
   }
 
   switch (bio.mentorId) {
@@ -112,6 +124,8 @@ export function applyBio(s: GameState, bio: Bio): void {
     case "syndicaliste": p.charisme += 6; s.power.syndicats += 10; break;
     case "industriel": p.reseau += 6; s.power.patronat += 12; s.flags["dette_industriel"] = true; break;
     case "prefet": p.strategie += 8; s.flags["mentor_prefet"] = true; break;
+    case "resistante": p.integrite += 12; s.country.cohesion += 4; s.flags["legitimite_morale"] = true; break;
+    case "personne": p.integrite += 8; p.reseau -= 12; p.strategie -= 5; s.flags["sans_mentor"] = true; break;
   }
 
   for (const k of Object.keys(p) as (keyof typeof p)[]) {

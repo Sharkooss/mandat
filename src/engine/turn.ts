@@ -162,6 +162,17 @@ const UNES_SERVILES = [
   "« Le Président au travail » — page 1, photo officielle fournie par l'Élysée",
 ];
 
+/** Fige les indicateurs en début de trimestre et calcule les tendances du précédent. */
+export function updateTrends(s: GameState): void {
+  const courant: Record<string, number> = { ...s.country, ...s.power };
+  if (Object.keys(s.trendBase).length > 0) {
+    const t: Record<string, number> = {};
+    for (const [k, v] of Object.entries(courant)) t[k] = v - (s.trendBase[k] ?? v);
+    s.trends = t;
+  }
+  s.trendBase = courant;
+}
+
 export function genBriefing(s: GameState, rng: Rng): void {
   s.press = [];
   // La une : dépend de la presse, de la popularité, et de la dérive.

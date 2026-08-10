@@ -1,4 +1,4 @@
-import type { CharacterDef, PromiseDef, SegmentDef } from "../../engine/types";
+import type { CharacterDef, PromiseDef, Rarete, SegmentDef } from "../../engine/types";
 
 // ---------------------------------------------------------------------------
 // Les segments d'électorat (poids somme à 100)
@@ -26,51 +26,71 @@ export interface CreationOption {
   nom: string;
   detail: string;
   effets: string; // description lisible
+  rarete: Rarete;
+  icone: string;
 }
 
 export const REGIONS: CreationOption[] = [
-  { id: "nord", nom: "Le bassin minier (Nord)", detail: "Père ouvrier, mère au guichet. Enfant de la crise.", effets: "+ endurance, + crédibilité populaire" },
-  { id: "paris", nom: "Les beaux quartiers (ouest parisien)", detail: "Héritier. Le soupçon de déconnexion ne partira jamais.", effets: "+ réseau, + levée de fonds" },
-  { id: "banlieue", nom: "La banlieue populaire (Île-de-France)", detail: "L'ascension méritocratique. Le quartier attend tout de vous.", effets: "+ charisme, jeunes et quartiers acquis" },
-  { id: "bretagne", nom: "La Bretagne", detail: "Ancrage terrien, réseau associatif et agricole dense.", effets: "+ stratégie, ruraux favorables" },
-  { id: "sudouest", nom: "Le Sud-Ouest rural", detail: "La république des maires. Le cumul dans le sang.", effets: "+ réseau local, + stratégie" },
-  { id: "lyon", nom: "Lyon et sa bourgeoisie", detail: "Gestion, sérieux, un certain froid en meeting.", effets: "+ stratégie, + patronat, − charisme" },
-  { id: "marseille", nom: "Marseille et le littoral", detail: "Débrouille, réseaux, des amitiés qu'il aurait mieux valu ne pas avoir.", effets: "+ rhétorique, un passé qui ressortira" },
-  { id: "est", nom: "L'Est frontalier", detail: "Europe, industrie, rigueur. Un déficit de flamme.", effets: "+ prestige international, − charisme" },
-  { id: "outremer", nom: "L'outre-mer", detail: "Une première historique. Des attentes immenses.", effets: "+ cohésion au départ, la vie chère devient votre dossier" },
+  { id: "nord", nom: "Le bassin minier", detail: "Père ouvrier, mère au guichet.", effets: "+ endurance · crédibilité populaire", rarete: "commune", icone: "⛏" },
+  { id: "paris", nom: "Les beaux quartiers", detail: "Héritier. Le soupçon ne partira jamais.", effets: "+ réseau · levée de fonds", rarete: "commune", icone: "◈" },
+  { id: "banlieue", nom: "La banlieue populaire", detail: "Le quartier attend tout de vous.", effets: "+ charisme · jeunes et quartiers", rarete: "peu_commune", icone: "▲" },
+  { id: "bretagne", nom: "La Bretagne", detail: "Ancrage terrien, réseau dense.", effets: "+ stratégie · ruraux", rarete: "commune", icone: "⚓" },
+  { id: "sudouest", nom: "Le Sud-Ouest rural", detail: "La république des maires.", effets: "+ réseau local · stratégie", rarete: "commune", icone: "☘" },
+  { id: "lyon", nom: "La bourgeoisie lyonnaise", detail: "Gestion, sérieux, froideur.", effets: "+ stratégie · patronat · − charisme", rarete: "commune", icone: "⬢" },
+  { id: "marseille", nom: "Marseille et le littoral", detail: "Des amitiés qu'il valait mieux ne pas avoir.", effets: "+ rhétorique · un passé qui ressortira", rarete: "peu_commune", icone: "⚑" },
+  { id: "est", nom: "L'Est frontalier", detail: "Europe, industrie, rigueur.", effets: "+ prestige · − charisme", rarete: "commune", icone: "✦" },
+  { id: "outremer", nom: "L'outre-mer", detail: "Une première historique.", effets: "+ cohésion · la vie chère devient votre dossier", rarete: "rare", icone: "❋" },
+  { id: "exil", nom: "L'enfance à l'étranger", detail: "Fils de diplomate, six pays avant vingt ans.", effets: "+ prestige · réseau · − ancrage local", rarete: "rare", icone: "✈" },
+  { id: "montagne", nom: "La vallée alpine", detail: "Un village, une école, une route qui ferme l'hiver.", effets: "+ endurance · ruraux · environnement", rarete: "peu_commune", icone: "⛰" },
 ];
 
 export const MILIEUX: CreationOption[] = [
-  { id: "ouvrier", nom: "Milieu ouvrier", detail: "On sait d'où vous venez, et vous aussi.", effets: "+ endurance, périurbain favorable, − réseau" },
-  { id: "fonctionnaire", nom: "Fonction publique", detail: "Le service de l'État comme évidence familiale.", effets: "+ intégrité, public favorable" },
-  { id: "commercant", nom: "Petit commerce", detail: "Les comptes du soir à la table de la cuisine.", effets: "+ stratégie, indépendants favorables" },
-  { id: "bourgeois", nom: "Grande bourgeoisie", detail: "Les codes, les dîners, les adresses.", effets: "+ réseau, + cynisme, quartiers hostiles" },
-  { id: "agricole", nom: "Exploitation agricole", detail: "Levé avant l'aube, toute votre enfance.", effets: "+ endurance, ruraux acquis" },
+  { id: "ouvrier", nom: "Milieu ouvrier", detail: "On sait d'où vous venez. Vous aussi.", effets: "+ endurance · périurbain · − réseau", rarete: "commune", icone: "⚒" },
+  { id: "fonctionnaire", nom: "Fonction publique", detail: "Le service de l'État comme évidence.", effets: "+ intégrité · public", rarete: "commune", icone: "⚖" },
+  { id: "commercant", nom: "Petit commerce", detail: "Les comptes du soir à la table de la cuisine.", effets: "+ stratégie · indépendants", rarete: "commune", icone: "🛍" },
+  { id: "bourgeois", nom: "Grande bourgeoisie", detail: "Les codes, les dîners, les adresses.", effets: "+ réseau · cynisme · − quartiers", rarete: "peu_commune", icone: "♛" },
+  { id: "agricole", nom: "Exploitation agricole", detail: "Levé avant l'aube, toute votre enfance.", effets: "+ endurance · ruraux", rarete: "commune", icone: "🌾" },
+  { id: "enseignant", nom: "Famille d'enseignants", detail: "Des livres partout, jamais d'argent.", effets: "+ rhétorique · public · urbains", rarete: "peu_commune", icone: "✎" },
+  { id: "immigre", nom: "Parents immigrés", detail: "Deux langues, deux mondes, une seule carte d'identité.", effets: "+ endurance · quartiers · jeunes", rarete: "rare", icone: "◐" },
 ];
 
 export const FORMATIONS: CreationOption[] = [
-  { id: "ena", nom: "L'école du pouvoir", detail: "La voie royale. Tout le monde vous y attend.", effets: "+ stratégie, + réseau, − charisme populaire" },
-  { id: "droit", nom: "Faculté de droit", detail: "Avocature, éloquence, procédure.", effets: "+ rhétorique" },
-  { id: "eco", nom: "Thèse en économie", detail: "Vous savez lire un budget. La presse s'en souviendra.", effets: "+ stratégie, crédibilité budgétaire" },
-  { id: "militaire", nom: "Carrière militaire", detail: "Quinze ans sous l'uniforme avant la politique.", effets: "+ endurance, armée favorable, un passé d'opérations" },
-  { id: "autodidacte", nom: "Autodidacte", detail: "Parti de rien, appris sur le tas.", effets: "+ charisme, + endurance, − réseau" },
+  { id: "ena", nom: "L'école du pouvoir", detail: "La voie royale. On vous y attend.", effets: "+ stratégie · réseau · − popularité", rarete: "commune", icone: "▣" },
+  { id: "droit", nom: "Faculté de droit", detail: "Éloquence et procédure.", effets: "+ rhétorique", rarete: "commune", icone: "§" },
+  { id: "eco", nom: "Thèse en économie", detail: "Vous savez lire un budget.", effets: "+ stratégie · crédibilité budgétaire", rarete: "commune", icone: "∑" },
+  { id: "militaire", nom: "Carrière militaire", detail: "Quinze ans sous l'uniforme.", effets: "+ endurance · armée · un passé d'opérations", rarete: "peu_commune", icone: "★" },
+  { id: "autodidacte", nom: "Autodidacte", detail: "Parti de rien, appris sur le tas.", effets: "+ charisme · endurance · − réseau", rarete: "peu_commune", icone: "◇" },
+  { id: "medecin", nom: "Médecine hospitalière", detail: "Vingt ans de gardes avant la politique.", effets: "+ intégrité · crédibilité santé", rarete: "rare", icone: "✚" },
+  { id: "syndicale", nom: "L'école du syndicat", detail: "Formé dans les assemblées générales.", effets: "+ charisme · syndicats · − patronat", rarete: "peu_commune", icone: "✊" },
 ];
 
 export const EVENEMENTS_FONDATEURS: CreationOption[] = [
-  { id: "usine", nom: "La fermeture de l'usine", detail: "Vous aviez seize ans. Le piquet de grève a duré deux mois, et perdu.", effets: "+ cause sociale ; ce combat vous rattrapera" },
-  { id: "frere", nom: "Le frère condamné", detail: "Une affaire, une condamnation, un silence de famille.", effets: "+ endurance ; un jour il demandera une grâce" },
-  { id: "attentat", nom: "L'attentat auquel vous avez survécu", detail: "Vous y étiez. Vous n'en parlez jamais.", effets: "+ légitimité sur la sécurité ; des cauchemars" },
-  { id: "these", nom: "La thèse écrite trop vite", detail: "Trois chapitres empruntés. Personne n'a vérifié. Pour l'instant.", effets: "+ carrière rapide ; une bombe à retardement" },
-  { id: "campagne_perdue", nom: "La première campagne perdue", detail: "Battu à 21 ans aux cantonales. Vous n'avez jamais oublié le score.", effets: "+ stratégie, + rancune utile" },
+  { id: "usine", nom: "La fermeture de l'usine", detail: "Vous aviez seize ans. Le piquet a perdu.", effets: "cause sociale ; ce combat vous rattrapera", rarete: "commune", icone: "🏭" },
+  { id: "frere", nom: "Le frère condamné", detail: "Une affaire, un silence de famille.", effets: "+ endurance ; il demandera une grâce", rarete: "peu_commune", icone: "⛓" },
+  { id: "attentat", nom: "L'attentat auquel vous avez survécu", detail: "Vous y étiez. Vous n'en parlez jamais.", effets: "légitimité sécurité ; des cauchemars", rarete: "rare", icone: "✷" },
+  { id: "these", nom: "La thèse écrite trop vite", detail: "Trois chapitres empruntés. Pour l'instant.", effets: "carrière rapide ; une bombe à retardement", rarete: "peu_commune", icone: "📄" },
+  { id: "campagne_perdue", nom: "La première campagne perdue", detail: "Battu à 21 ans. Le score, vous l'avez retenu.", effets: "+ stratégie · cynisme", rarete: "commune", icone: "☒" },
+  { id: "greve_faim", nom: "La grève de la faim", detail: "Douze jours devant une préfecture. Vous aviez gagné.", effets: "+ charisme · endurance ; une santé entamée", rarete: "legendaire", icone: "◉" },
+  { id: "sauvetage", nom: "Le sauvetage", detail: "Vous avez sorti deux personnes d'une voiture en feu.", effets: "+ popularité durable · courage reconnu", rarete: "rare", icone: "✹" },
 ];
 
 export const MENTORS: CreationOption[] = [
-  { id: "baron", nom: "Le baron local", detail: "Quarante ans de mandats. Il connaît chaque bulletin de vote du département.", effets: "+ réseau, + cynisme ; il attend un retour" },
-  { id: "professeure", nom: "La professeure de droit public", detail: "Elle croit aux institutions plus qu'aux hommes.", effets: "+ intégrité, + rhétorique ; elle vous jugera" },
-  { id: "syndicaliste", nom: "Le vieux syndicaliste", detail: "Il vous a appris à parler à une salle hostile.", effets: "+ charisme, syndicats favorables" },
-  { id: "industriel", nom: "L'industriel philanthrope", detail: "Il finance des carrières comme d'autres des musées.", effets: "+ levée de fonds, patronat favorable ; un carnet d'adresses qui engage" },
-  { id: "prefet", nom: "L'ancien préfet", detail: "Il sait comment l'État fonctionne vraiment.", effets: "+ stratégie ; il connaît aussi vos dossiers" },
+  { id: "baron", nom: "Le baron local", detail: "Quarante ans de mandats, chaque bulletin en tête.", effets: "+ réseau · cynisme ; il attend un retour", rarete: "commune", icone: "♜" },
+  { id: "professeure", nom: "La professeure de droit", detail: "Elle croit aux institutions plus qu'aux hommes.", effets: "+ intégrité · rhétorique ; elle vous jugera", rarete: "commune", icone: "⚜" },
+  { id: "syndicaliste", nom: "Le vieux syndicaliste", detail: "Il vous a appris les salles hostiles.", effets: "+ charisme · syndicats", rarete: "commune", icone: "✊" },
+  { id: "industriel", nom: "L'industriel philanthrope", detail: "Il finance des carrières comme d'autres des musées.", effets: "+ fonds · patronat ; un carnet qui engage", rarete: "peu_commune", icone: "⬣" },
+  { id: "prefet", nom: "L'ancien préfet", detail: "Il sait comment l'État fonctionne vraiment.", effets: "+ stratégie ; il connaît vos dossiers", rarete: "commune", icone: "◫" },
+  { id: "resistante", nom: "La dernière résistante", detail: "Cent deux ans. Elle vous a dit une seule phrase.", effets: "+ intégrité · légitimité morale", rarete: "legendaire", icone: "✶" },
+  { id: "personne", nom: "Personne", detail: "Vous ne devez rien à personne. C'est aussi une faiblesse.", effets: "+ intégrité · − réseau · − stratégie", rarete: "rare", icone: "○" },
 ];
+
+/** Poids de tirage : les options rares sortent moins souvent. */
+export const POIDS_RARETE: Record<Rarete, number> = {
+  commune: 10,
+  peu_commune: 5,
+  rare: 2,
+  legendaire: 1,
+};
 
 // ---------------------------------------------------------------------------
 // Le casting
@@ -100,6 +120,32 @@ export const CAST: CharacterDef[] = [
   { id: "manin", nom: "Dr Estelle Manin", role: "Médecin personnel", camp: "intime", loyaute: 90, ambition: 10, rancune: 0 },
   { id: "weiss", nom: "Chancelier Weiss", role: "Chancelier allemand", camp: "etranger", loyaute: 40, ambition: 50, rancune: 0 },
 ];
+
+/** Étiquette courte affichée en tag coloré dans le panneau Entourage. */
+export const CAST_TAGS: Record<string, string> = {
+  rochefort: "Matignon",
+  mazeau: "Intérieur",
+  danglade: "Bercy",
+  verdier: "État-major",
+  ternay: "Renseignement",
+  roze: "Communication",
+  espitalier: "Trésorier",
+  delval: "Secrétaire gén.",
+  sallenave: "Tribun",
+  andrieu: "Opposition",
+  rives: "Magnat",
+  ferrand: "Investigation",
+  bec: "Éditorialiste",
+  kervella: "Syndicat dur",
+  belkacem: "Syndicat réf.",
+  charvet: "Patronat",
+  quesnel: "Sénat",
+  alberti: "Conseil const.",
+  conjoint: "Conjoint",
+  bensalah: "Ami d'enfance",
+  manin: "Médecin",
+  weiss: "Berlin",
+};
 
 // ---------------------------------------------------------------------------
 // Le pool de promesses (16, en choisir 6)

@@ -1,68 +1,209 @@
 import { useState } from "react";
-import type { GameState, PressItem } from "../engine/types";
-import { CAST, SEGMENTS, PROMESSES } from "../content/france/data";
+import type { GameEvent, GameState, PressItem, Rarete } from "../engine/types";
+import type { Delta } from "../engine/deltas";
+import { CAST, CAST_TAGS, SEGMENTS, PROMESSES } from "../content/france/data";
 import { getEvent } from "../engine/registry";
 import { useGame } from "../store";
 
 // ---------------------------------------------------------------------------
+// Couleurs sémantiques
+// ---------------------------------------------------------------------------
 
-export function Gauge({ label, value, max = 100, color, suffix }: { label: string; value: number; max?: number; color?: string; suffix?: string }) {
+export const TONE: Record<string, string> = {
+  eco: "var(--color-eco)",
+  social: "var(--color-social)",
+  securite: "var(--color-secu)",
+  environnement: "var(--color-env)",
+  monde: "var(--color-monde)",
+  pouvoir: "var(--color-pouvoir)",
+  perso: "var(--color-perso)",
+  good: "var(--color-good)",
+  bad: "var(--color-bad)",
+  muted: "var(--color-faint)",
+};
+
+const CAMP_TONE: Record<string, string> = {
+  gouvernement: "var(--color-secu)",
+  parti: "var(--color-pouvoir)",
+  opposition: "var(--color-bad)",
+  presse: "var(--color-perso)",
+  corps: "var(--color-social)",
+  institutions: "var(--color-monde)",
+  intime: "var(--color-env)",
+  etranger: "var(--color-eco)",
+};
+
+const RARETE_META: Record<Rarete, { label: string; tone: string }> = {
+  commune: { label: "Commune", tone: "var(--color-r-commune)" },
+  peu_commune: { label: "Peu commune", tone: "var(--color-r-peu)" },
+  rare: { label: "Rare", tone: "var(--color-r-rare)" },
+  legendaire: { label: "Légendaire", tone: "var(--color-r-legend)" },
+};
+
+/** La rareté d'un événement : explicite, ou déduite de sa nature. */
+export function rareteOf(ev: GameEvent): Rarete {
+  if (ev.rarete) return ev.rarete;
+  if (ev.kind === "crise") return "legendaire";
+  if (ev.kind === "intrigue") return "rare";
+  if (ev.kind === "monde" || ev.kind === "perso") return "peu_commune";
+  return "commune";
+}
+
+export function Tag({ tone, children }: { tone: string; children: React.ReactNode }) {
+  return (
+    <span className="tag" style={{ "--tone": tone } as React.CSSProperties}>
+      {children}
+    </span>
+  );
+}
+
+export function RareteBadge({ rarete }: { rarete: Rarete }) {
+  const m = RARETE_META[rarete];
+  return (
+    <Tag tone={m.tone}>
+      {rarete === "legendaire" ? "✦" : rarete === "rare" ? "◆" : rarete === "peu_commune" ? "◈" : "◇"} {m.label}
+    </Tag>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Jauges et métriques
+// ---------------------------------------------------------------------------
+
+export function Gauge({ label, value, max = 100, tone = "monde", suffix }: { label: string; value: number; max?: number; tone?: string; suffix?: string }) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
   return (
-    <div className="mb-2">
-      <div className="flex justify-between text-xs text-paper-300 mb-0.5">
-        <span>{label}</span>
-        <span className="tabular-nums">{suffix ? `${value.toFixed(1)}${suffix}` : Math.round(value)}</span>
+    <div className="mb-2.5" style={{ "--tone": TONE[tone] ?? tone } as React.CSSProperties}>
+      <div className="flex justify-between text-[11px] mb-1">
+        <span style={{ color: "var(--color-muted)" }}>{label}</span>
+        <span className="tabular-nums font-semibold" style={{ color: TONE[tone] ?? tone }}>
+          {suffix ? `${value.toFixed(1)}${suffix}` : Math.round(value)}
+        </span>
       </div>
       <div className="gauge-track">
-        <div className="gauge-fill" style={{ width: `${pct}%`, background: color ?? "var(--accent)" }} />
+        <div className="gauge-fill" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
 }
 
-export function Pips({ n, max }: { n: number; max: number }) {
+function Trend({ v, inverse }: { v: number | undefined; inverse?: boolean }) {
+  if (v === undefined || Math.abs(v) < 0.4) return <span style={{ color: "var(--color-faint)" }}>→</span>;
+  const bon = inverse ? v < 0 : v > 0;
   return (
-    <div className="flex gap-1.5 items-center">
-      {Array.from({ length: max }).map((_, i) => (
-        <div
-          key={i}
-          className="w-3.5 h-3.5 rounded-full border"
-          style={{
-            background: i < n ? "var(--color-accent-warm)" : "transparent",
-            borderColor: "var(--color-paper-500)",
-          }}
-        />
-      ))}
-      <span className="text-xs text-paper-500 ml-1">capital politique</span>
+    <span style={{ color: bon ? "var(--color-good)" : "var(--color-bad)" }} title={`${v > 0 ? "+" : ""}${Math.round(v * 10) / 10} ce trimestre`}>
+      {v > 0 ? "↗" : "↘"}
+    </span>
+  );
+}
+
+interface MetricSpec {
+  key: string;
+  label: string;
+  value: number;
+  tone: string;
+  suffix?: string;
+  inverse?: boolean;
+  critique?: boolean;
+  max?: number;
+}
+
+function MetricCard({ m, trend }: { m: MetricSpec; trend?: number }) {
+  return (
+    <div className="metric" data-critical={m.critique} style={{ "--tone": TONE[m.tone] ?? m.tone } as React.CSSProperties}>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--color-faint)" }}>
+          {m.label}
+        </span>
+        <Trend v={trend} inverse={m.inverse} />
+      </div>
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-lg font-bold tabular-nums" style={{ color: m.critique ? "var(--color-bad)" : TONE[m.tone] ?? m.tone }}>
+          {m.suffix ? m.value.toFixed(1) : Math.round(m.value)}
+        </span>
+        {m.suffix && <span className="text-[11px]" style={{ color: "var(--color-faint)" }}>{m.suffix}</span>}
+      </div>
+      {m.max !== undefined && (
+        <div className="gauge-track mt-1.5" style={{ height: 4 }}>
+          <div className="gauge-fill" style={{ width: `${Math.min(100, (m.value / m.max) * 100)}%` }} />
+        </div>
+      )}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
+// Le retour visuel après une décision
+// ---------------------------------------------------------------------------
 
-const TONE_STYLE: Record<PressItem["tone"], string> = {
-  hostile: "text-red-300",
-  neutre: "text-paper-100",
-  favorable: "text-emerald-200",
-  servile: "text-paper-500 italic",
-  satirique: "text-amber-200",
+export function DeltaChips({ deltas, signals }: { deltas: Delta[]; signals: string[] }) {
+  if (deltas.length === 0 && signals.length === 0) return null;
+  return (
+    <div className="mt-4 space-y-2">
+      {deltas.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 stagger">
+          {deltas.map((d, i) => {
+            const bon = d.inverse ? d.value < 0 : d.value > 0;
+            return (
+              <span key={i} className="chip" style={{ "--tone": bon ? "var(--color-good)" : "var(--color-bad)" } as React.CSSProperties}>
+                <span style={{ opacity: 0.75 }}>{d.label}</span>
+                <b className="tabular-nums">
+                  {d.value > 0 ? "+" : ""}
+                  {d.value}
+                  {d.suffix ?? ""}
+                </b>
+              </span>
+            );
+          })}
+        </div>
+      )}
+      {signals.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {signals.map((sig, i) => (
+            <span key={i} className="chip" style={{ "--tone": "var(--color-warn)" } as React.CSSProperties}>
+              ◐ {sig}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Presse
+// ---------------------------------------------------------------------------
+
+const TONE_PRESSE: Record<PressItem["tone"], string> = {
+  hostile: "var(--color-bad)",
+  neutre: "var(--color-text)",
+  favorable: "var(--color-good)",
+  servile: "var(--color-faint)",
+  satirique: "var(--color-warn)",
 };
 
 export function PressList({ items }: { items: PressItem[] }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       {items.map((it, i) =>
         it.kind === "une" ? (
-          <div key={i} className={`press-une text-xl leading-snug border-b border-ink-600 pb-3 ${TONE_STYLE[it.tone]}`}>
+          <div
+            key={i}
+            className="press-une text-[19px] leading-snug pb-3 mb-1 border-b"
+            style={{ color: TONE_PRESSE[it.tone], borderColor: "var(--color-line-soft)" }}
+          >
             {it.text}
           </div>
         ) : it.kind === "symptome" ? (
-          <div key={i} className="text-sm italic text-paper-500 pl-3 border-l-2" style={{ borderColor: "var(--color-danger)" }}>
-            {it.text}
+          <div
+            className="text-[13px] italic px-3 py-2 rounded-lg"
+            key={i}
+            style={{ color: "var(--color-warn)", background: "color-mix(in srgb, var(--color-warn) 9%, transparent)" }}
+          >
+            ◐ {it.text}
           </div>
         ) : (
-          <div key={i} className={`text-sm ${TONE_STYLE[it.tone]}`}>
+          <div key={i} className="text-[13px] leading-relaxed" style={{ color: TONE_PRESSE[it.tone] === "var(--color-text)" ? "var(--color-muted)" : TONE_PRESSE[it.tone] }}>
             {it.text}
           </div>
         )
@@ -72,6 +213,18 @@ export function PressList({ items }: { items: PressItem[] }) {
 }
 
 // ---------------------------------------------------------------------------
+// L'événement
+// ---------------------------------------------------------------------------
+
+const KIND_META: Record<string, { label: string; tone: string }> = {
+  crise: { label: "Cellule de crise", tone: "var(--color-bad)" },
+  intrigue: { label: "Dossier sensible", tone: "var(--color-monde)" },
+  monde: { label: "Le monde", tone: "var(--color-eco)" },
+  perso: { label: "Vie privée", tone: "var(--color-env)" },
+  standard: { label: "Le trimestre", tone: "var(--color-secu)" },
+  ascension: { label: "L'ascension", tone: "var(--color-pouvoir)" },
+  campagne: { label: "Campagne", tone: "var(--color-social)" },
+};
 
 export function EventView({ s }: { s: GameState }) {
   const chooseOption = useGame((g) => g.chooseOption);
@@ -80,39 +233,61 @@ export function EventView({ s }: { s: GameState }) {
   if (!ev) return null;
   const source = ev.source ? CAST.find((c) => c.id === ev.source) : null;
   const texte = typeof ev.texte === "function" ? ev.texte(s) : ev.texte;
+  const meta = KIND_META[ev.kind] ?? KIND_META.standard;
+  const rarete = rareteOf(ev);
 
   return (
-    <div className="dossier p-6 fade-in" key={ev.id + (s.resolution ? "-r" : "")}>
-      <div className="text-xs uppercase tracking-widest text-paper-500 mb-1">
-        {ev.kind === "crise" ? "Cellule de crise" : ev.kind === "intrigue" ? "Dossier sensible" : ev.kind === "monde" ? "Le monde" : ev.kind === "perso" ? "Vie privée" : "Le trimestre"}
+    <div className="card p-6 fade-in" key={ev.id + (s.resolution ? "-r" : "")}>
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <Tag tone={meta.tone}>{meta.label}</Tag>
+        {rarete !== "commune" && <RareteBadge rarete={rarete} />}
       </div>
-      <h2 className="press-une text-2xl mb-3">{ev.titre}</h2>
+      <h2 className="press-une text-2xl mb-3 leading-tight">{ev.titre}</h2>
+
       {source && (
-        <div className="text-xs text-paper-500 mb-3">
-          Rapporté par {source.nom}, {source.role.toLowerCase()}
-          {source.biais ? <span className="italic"> — on dit de lui/elle : {source.biais}</span> : null}
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <Tag tone={CAMP_TONE[source.camp]}>{CAST_TAGS[source.id] ?? source.role}</Tag>
+          <span className="text-[11px]" style={{ color: "var(--color-faint)" }}>
+            {source.biais ? `⚠ ${source.biais}` : source.nom}
+          </span>
         </div>
       )}
+
       {!s.resolution ? (
         <>
-          <p className="text-[15px] leading-relaxed text-paper-100/90 mb-5 whitespace-pre-line">{texte}</p>
-          <div className="space-y-2">
+          <p className="text-[15px] leading-relaxed mb-5" style={{ color: "color-mix(in srgb, var(--color-text) 88%, transparent)" }}>
+            {texte}
+          </p>
+          <div className="space-y-2 stagger">
             {ev.choices
               .filter((c) => !c.cond || c.cond(s))
-              .map((c) => (
-                <button key={c.id} className="btn-choice" onClick={() => chooseOption(c.id)}>
-                  <div className="font-semibold text-sm">{c.label}</div>
-                  {c.detail && <div className="text-xs text-paper-500 mt-0.5">{c.detail}</div>}
+              .map((c, i) => (
+                <button
+                  key={c.id}
+                  className="btn-choice"
+                  style={{ "--tone": [TONE.eco, TONE.social, TONE.monde, TONE.perso][i % 4] } as React.CSSProperties}
+                  onClick={() => chooseOption(c.id)}
+                >
+                  <div className="font-semibold text-[14px]">{c.label}</div>
+                  {c.detail && (
+                    <div className="text-[12px] mt-0.5" style={{ color: "var(--color-faint)" }}>
+                      {c.detail}
+                    </div>
+                  )}
                 </button>
               ))}
           </div>
         </>
       ) : (
         <div className="fade-in">
-          <p className="text-[15px] leading-relaxed text-paper-100/90 mb-5 whitespace-pre-line border-l-2 pl-4" style={{ borderColor: "var(--color-accent-warm)" }}>
+          <p
+            className="text-[15px] leading-relaxed pl-4 border-l-2"
+            style={{ borderColor: "var(--accent)", color: "color-mix(in srgb, var(--color-text) 88%, transparent)" }}
+          >
             {s.resolution}
           </p>
-          <button className="btn-primary" onClick={continueAfter}>
+          <DeltaChips deltas={s.lastDeltas} signals={s.lastSignals} />
+          <button className="btn-primary mt-5" onClick={continueAfter}>
             Continuer
           </button>
         </div>
@@ -122,42 +297,151 @@ export function EventView({ s }: { s: GameState }) {
 }
 
 // ---------------------------------------------------------------------------
+// Entourage : tags de fonction + relation visuelle
+// ---------------------------------------------------------------------------
 
-function loyLabel(l: number): string {
-  if (l >= 75) return "dévoué";
-  if (l >= 55) return "loyal";
-  if (l >= 35) return "distant";
-  if (l >= 15) return "froid";
-  return "hostile";
-}
-function ambLabel(a: number): string {
-  if (a >= 75) return "dévorante";
-  if (a >= 55) return "affirmée";
-  if (a >= 30) return "contenue";
-  return "modeste";
+function relationMeta(l: number): { label: string; tone: string; niveau: number } {
+  if (l >= 75) return { label: "Dévoué", tone: "var(--color-good)", niveau: 5 };
+  if (l >= 55) return { label: "Loyal", tone: "var(--color-env)", niveau: 4 };
+  if (l >= 35) return { label: "Distant", tone: "var(--color-warn)", niveau: 3 };
+  if (l >= 15) return { label: "Froid", tone: "var(--color-social)", niveau: 2 };
+  return { label: "Hostile", tone: "var(--color-bad)", niveau: 1 };
 }
 
-export function StatsTabs({ s }: { s: GameState }) {
-  const [tab, setTab] = useState<"vous" | "pays" | "pouvoir" | "promesses" | "entourage">("pays");
-  const tabs = [
-    ["pays", "Le pays"],
-    ["pouvoir", "Le pouvoir"],
-    ["vous", "Vous"],
-    ["promesses", "Promesses"],
-    ["entourage", "Entourage"],
+function RelationBars({ niveau, tone }: { niveau: number; tone: string }) {
+  return (
+    <div className="flex gap-[3px] items-end h-3.5">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div
+          key={i}
+          style={{
+            width: 3.5,
+            height: 4 + i * 2,
+            borderRadius: 2,
+            background: i <= niveau ? tone : "var(--color-line)",
+            opacity: i <= niveau ? 1 : 0.5,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function Entourage({ s }: { s: GameState }) {
+  const [filtre, setFiltre] = useState<string | null>(null);
+  const camps = [
+    ["gouvernement", "Gouvernement"],
+    ["parti", "Parti"],
+    ["opposition", "Opposition"],
+    ["presse", "Presse"],
+    ["corps", "Corps interm."],
+    ["institutions", "Institutions"],
+    ["intime", "Intimes"],
   ] as const;
 
+  const liste = CAST.filter((c) => s.characters[c.id]?.vivant && (!filtre || c.camp === filtre));
+
   return (
-    <div className="dossier p-4">
+    <div>
+      <div className="flex flex-wrap gap-1 mb-3">
+        <button onClick={() => setFiltre(null)} className="tag" style={{ "--tone": filtre === null ? "var(--color-text)" : "var(--color-faint)" } as React.CSSProperties}>
+          Tous
+        </button>
+        {camps.map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setFiltre(filtre === id ? null : id)}
+            className="tag"
+            style={{ "--tone": filtre === id ? CAMP_TONE[id] : "var(--color-faint)", cursor: "pointer" } as React.CSSProperties}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-1.5 max-h-[420px] overflow-y-auto pr-1">
+        {liste.map((c) => {
+          const st = s.characters[c.id];
+          const nom = c.id === "conjoint" ? s.bio.conjointPrenom : c.nom;
+          const rel = relationMeta(st.loyaute);
+          return (
+            <div key={c.id} className="card-flat px-2.5 py-2" style={{ borderLeft: `3px solid ${CAMP_TONE[c.camp]}` }}>
+              <div className="flex items-center justify-between gap-2">
+                <span className={`text-[13px] font-semibold ${st.enPoste ? "" : "line-through opacity-50"}`}>{nom}</span>
+                <RelationBars niveau={rel.niveau} tone={rel.tone} />
+              </div>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                <Tag tone={CAMP_TONE[c.camp]}>{CAST_TAGS[c.id] ?? c.role}</Tag>
+                <Tag tone={rel.tone}>{rel.label}</Tag>
+                {st.ambition >= 65 && <Tag tone="var(--color-warn)">⚑ Ambitieux</Tag>}
+                {st.rancune >= 30 && <Tag tone="var(--color-bad)">⚔ Rancune</Tag>}
+                {c.biais && <Tag tone="var(--color-faint)">⚠ Biaisé</Tag>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Le panneau
+// ---------------------------------------------------------------------------
+
+export function StatsTabs({ s }: { s: GameState }) {
+  const [tab, setTab] = useState<"pays" | "pouvoir" | "vous" | "promesses" | "entourage">("pays");
+  const tabs = [
+    ["pays", "Pays", "var(--color-eco)"],
+    ["pouvoir", "Pouvoir", "var(--color-pouvoir)"],
+    ["vous", "Vous", "var(--color-perso)"],
+    ["promesses", "Promesses", "var(--color-social)"],
+    ["entourage", "Entourage", "var(--color-secu)"],
+  ] as const;
+
+  const c = s.country;
+  const eco: MetricSpec[] = [
+    { key: "croissance", label: "Croissance", value: c.croissance, tone: "eco", suffix: " %", critique: c.croissance < 0 },
+    { key: "chomage", label: "Chômage", value: c.chomage, tone: "eco", suffix: " %", inverse: true, critique: c.chomage > 10 },
+    { key: "inflation", label: "Inflation", value: c.inflation, tone: "eco", suffix: " %", inverse: true, critique: c.inflation > 4 },
+    { key: "dette", label: "Dette / PIB", value: c.dette, tone: "eco", suffix: " %", inverse: true, critique: c.dette > 130 },
+    { key: "marge", label: "Marge budgét.", value: c.marge, tone: "eco", max: 100, critique: c.marge < 15 },
+  ];
+  const societe: MetricSpec[] = [
+    { key: "services", label: "Services publics", value: c.services, tone: "social", max: 100, critique: c.services < 30 },
+    { key: "cohesion", label: "Cohésion", value: c.cohesion, tone: "social", max: 100, critique: c.cohesion < 30 },
+    { key: "securite", label: "Sécurité", value: c.securite, tone: "securite", max: 100, critique: c.securite < 35 },
+    { key: "environnement", label: "Environnement", value: c.environnement, tone: "environnement", max: 100, critique: c.environnement < 30 },
+  ];
+  const monde: MetricSpec[] = [{ key: "prestige", label: "Prestige", value: c.prestige, tone: "monde", max: 100, critique: c.prestige < 40 }];
+
+  const p = s.power;
+  const pouvoir: MetricSpec[] = [
+    { key: "popularite", label: "Popularité", value: p.popularite, tone: "pouvoir", max: 100, critique: p.popularite < 30 },
+    { key: "parti", label: "Parti", value: p.parti, tone: "pouvoir", max: 100, critique: p.parti < 30 },
+    { key: "presse", label: "Presse", value: p.presse, tone: "perso", max: 100, critique: p.presse < 30 },
+    { key: "justice", label: "Justice", value: p.justice, tone: "monde", max: 100, critique: p.justice < 30 },
+  ];
+  const forces: MetricSpec[] = [
+    { key: "armee", label: "Armée", value: p.armee, tone: "securite", max: 100, critique: p.armee < 35 },
+    { key: "patronat", label: "Patronat", value: p.patronat, tone: "eco", max: 100, critique: p.patronat < 30 },
+    { key: "syndicats", label: "Syndicats", value: p.syndicats, tone: "social", max: 100, critique: p.syndicats < 25 },
+  ];
+
+  const critiques = [...eco, ...societe, ...monde, ...pouvoir, ...forces].filter((m) => m.critique);
+
+  return (
+    <div className="card p-4">
       <div className="flex flex-wrap gap-1 mb-4">
-        {tabs.map(([id, label]) => (
+        {tabs.map(([id, label, tone]) => (
           <button
             key={id}
             onClick={() => setTab(id)}
-            className="text-xs px-2.5 py-1.5 rounded transition-colors"
+            className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors"
             style={{
-              background: tab === id ? "var(--accent)" : "var(--color-ink-700)",
-              color: tab === id ? "#fff" : "var(--color-paper-300)",
+              background: tab === id ? `color-mix(in srgb, ${tone} 22%, transparent)` : "var(--color-surface-2)",
+              color: tab === id ? tone : "var(--color-faint)",
+              border: `1px solid ${tab === id ? `color-mix(in srgb, ${tone} 45%, transparent)` : "transparent"}`,
             }}
           >
             {label}
@@ -166,124 +450,217 @@ export function StatsTabs({ s }: { s: GameState }) {
       </div>
 
       {tab === "pays" && (
-        <div>
-          <Gauge label="Croissance" value={s.country.croissance} max={5} suffix=" %" color="#4a8a5c" />
-          <Gauge label="Chômage" value={s.country.chomage} max={15} suffix=" %" color="#a05c3c" />
-          <Gauge label="Inflation" value={s.country.inflation} max={8} suffix=" %" color="#a05c3c" />
-          <Gauge label="Dette (% PIB)" value={s.country.dette} max={200} suffix=" %" color="#a03c3c" />
-          <Gauge label="Marge budgétaire" value={s.country.marge} />
-          <Gauge label="Services publics" value={s.country.services} />
-          <Gauge label="Sécurité" value={s.country.securite} />
-          <Gauge label="Environnement" value={s.country.environnement} color="#4a8a5c" />
-          <Gauge label="Cohésion sociale" value={s.country.cohesion} />
-          <Gauge label="Prestige international" value={s.country.prestige} color="var(--color-accent-warm)" />
+        <div className="space-y-3">
+          {critiques.length > 0 && (
+            <div
+              className="rounded-xl px-3 py-2"
+              style={{ background: "color-mix(in srgb, var(--color-bad) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--color-bad) 30%, transparent)" }}
+            >
+              <div className="label mb-1.5" style={{ color: "var(--color-bad)" }}>
+                ⚠ {critiques.length} secteur{critiques.length > 1 ? "s" : ""} critique{critiques.length > 1 ? "s" : ""}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {critiques.map((m) => (
+                  <Tag key={m.key} tone="var(--color-bad)">
+                    {m.label}
+                  </Tag>
+                ))}
+              </div>
+            </div>
+          )}
+          <div>
+            <div className="label mb-1.5">Économie</div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {eco.map((m) => (
+                <MetricCard key={m.key} m={m} trend={s.trends[m.key]} />
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="label mb-1.5">Société</div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {societe.map((m) => (
+                <MetricCard key={m.key} m={m} trend={s.trends[m.key]} />
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="label mb-1.5">International</div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {monde.map((m) => (
+                <MetricCard key={m.key} m={m} trend={s.trends[m.key]} />
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
       {tab === "pouvoir" && (
-        <div>
-          <Gauge label="Popularité" value={s.power.popularite} color="var(--color-accent-warm)" />
-          <Gauge label="Sièges à l'Assemblée" value={s.power.sieges} max={577} />
-          <div className="text-[10px] text-paper-500 -mt-1 mb-2">majorité absolue : 289{s.cohabitation ? " — COHABITATION" : s.power.sieges > 0 && s.power.sieges < 289 ? " — majorité relative" : ""}</div>
-          <Gauge label="Loyauté du parti" value={s.power.parti} />
-          <Gauge label="Presse" value={s.power.presse} />
-          <Gauge label="Armée" value={s.power.armee} />
-          <Gauge label="Patronat" value={s.power.patronat} />
-          <Gauge label="Syndicats" value={s.power.syndicats} />
-          <Gauge label="Sérénité judiciaire" value={s.power.justice} />
+        <div className="space-y-3">
+          <div>
+            <div className="label mb-1.5">Assemblée nationale</div>
+            <SeatBar s={s} />
+          </div>
+          <div>
+            <div className="label mb-1.5">Votre assise</div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {pouvoir.map((m) => (
+                <MetricCard key={m.key} m={m} trend={s.trends[m.key]} />
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="label mb-1.5">Les forces du pays</div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {forces.map((m) => (
+                <MetricCard key={m.key} m={m} trend={s.trends[m.key]} />
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
       {tab === "vous" && (
         <div>
-          <Gauge label="Charisme" value={s.player.charisme} />
-          <Gauge label="Rhétorique" value={s.player.rhetorique} />
-          <Gauge label="Stratégie" value={s.player.strategie} />
-          <Gauge label="Intégrité" value={s.player.integrite} color="#4a8a5c" />
-          <Gauge label="Cynisme" value={s.player.cynisme} color="#a05c3c" />
-          <Gauge label="Endurance" value={s.player.endurance} />
-          <Gauge label="Réseau" value={s.player.reseau} />
-          <div className="text-[11px] text-paper-500 mt-3 italic">
-            Le reste — la fatigue, la santé, ce qui monte en silence — ne s'affiche nulle part. Lisez les journaux. Écoutez les silences.
+          <Gauge label="Charisme" value={s.player.charisme} tone="perso" />
+          <Gauge label="Rhétorique" value={s.player.rhetorique} tone="perso" />
+          <Gauge label="Stratégie" value={s.player.strategie} tone="securite" />
+          <Gauge label="Intégrité" value={s.player.integrite} tone="eco" />
+          <Gauge label="Cynisme" value={s.player.cynisme} tone="bad" />
+          <Gauge label="Endurance" value={s.player.endurance} tone="env" />
+          <Gauge label="Réseau" value={s.player.reseau} tone="monde" />
+          <div className="text-[11px] mt-3 italic leading-relaxed" style={{ color: "var(--color-faint)" }}>
+            La fatigue, la santé, ce qui monte en silence : rien de tout cela ne s'affiche. Lisez les journaux. Écoutez les
+            silences.
           </div>
         </div>
       )}
 
-      {tab === "promesses" && (
-        <div className="space-y-2">
-          {s.promises.length === 0 && <div className="text-sm text-paper-500 italic">Aucune promesse — la campagne n'a pas commencé.</div>}
-          {s.promises.map((p) => {
-            const def = PROMESSES.find((d) => d.id === p.id);
-            const badge =
-              p.status === "tenue" ? ["Tenue", "#4a8a5c"] : p.status === "trahie" ? ["Trahie", "#a03c3c"] : p.status === "partielle" ? ["Engagée", "var(--color-accent-warm)"] : ["En attente", "var(--color-ink-600)"];
-            return (
-              <div key={p.id} className="flex items-start justify-between gap-2 text-sm border-b border-ink-700 pb-2">
-                <span className="text-paper-100/90">{def?.label ?? p.id}</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: badge[1] }}>
-                  {badge[0]}
-                </span>
-              </div>
-            );
-          })}
-          <div className="text-[11px] text-paper-500 italic pt-1">La presse et les électeurs tiennent le même dossier. À jour.</div>
-        </div>
-      )}
+      {tab === "promesses" && <Promesses s={s} />}
+      {tab === "entourage" && <Entourage s={s} />}
+    </div>
+  );
+}
 
-      {tab === "entourage" && (
-        <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-          {CAST.filter((c) => s.characters[c.id]?.vivant).map((c) => {
-            const st = s.characters[c.id];
-            const nom = c.id === "conjoint" ? s.bio.conjointPrenom : c.nom;
-            return (
-              <div key={c.id} className="text-sm border-b border-ink-700 pb-1.5">
-                <div className="flex justify-between">
-                  <span className={st.enPoste ? "" : "line-through text-paper-500"}>{nom}</span>
-                  <span className="text-xs text-paper-500">{loyLabel(st.loyaute)}</span>
-                </div>
-                <div className="text-[11px] text-paper-500">
-                  {c.role}
-                  {st.ambition >= 55 ? ` · ambition ${ambLabel(st.ambition)}` : ""}
-                  {st.rancune >= 25 ? " · rancunier" : ""}
-                </div>
-              </div>
-            );
-          })}
+function SeatBar({ s }: { s: GameState }) {
+  const total = 577;
+  const pct = (s.power.sieges / total) * 100;
+  const majoritePct = (289 / total) * 100;
+  const statut = s.cohabitation
+    ? { label: "Cohabitation", tone: "var(--color-bad)" }
+    : s.power.sieges >= 289
+      ? { label: "Majorité absolue", tone: "var(--color-good)" }
+      : { label: "Majorité relative", tone: "var(--color-warn)" };
+  return (
+    <div className="card-flat p-3">
+      <div className="flex justify-between items-baseline mb-2">
+        <span className="text-lg font-bold tabular-nums" style={{ color: statut.tone }}>
+          {s.power.sieges}
+          <span className="text-[11px] font-normal" style={{ color: "var(--color-faint)" }}>
+            {" "}
+            / 577
+          </span>
+        </span>
+        <Tag tone={statut.tone}>{statut.label}</Tag>
+      </div>
+      <div className="relative">
+        <div className="gauge-track" style={{ height: 10, "--tone": statut.tone } as React.CSSProperties}>
+          <div className="gauge-fill" style={{ width: `${pct}%` }} />
         </div>
-      )}
+        <div className="absolute top-0 bottom-0 w-px" style={{ left: `${majoritePct}%`, background: "var(--color-text)", opacity: 0.65 }} />
+      </div>
+      <div className="text-[10px] mt-1" style={{ color: "var(--color-faint)" }}>
+        Le trait marque la majorité absolue (289)
+      </div>
+    </div>
+  );
+}
+
+function Promesses({ s }: { s: GameState }) {
+  if (s.promises.length === 0)
+    return (
+      <div className="text-[13px] italic" style={{ color: "var(--color-faint)" }}>
+        Aucune promesse — la campagne n'a pas commencé.
+      </div>
+    );
+  const meta: Record<string, { label: string; tone: string }> = {
+    tenue: { label: "Tenue", tone: "var(--color-good)" },
+    trahie: { label: "Trahie", tone: "var(--color-bad)" },
+    partielle: { label: "Engagée", tone: "var(--color-warn)" },
+    en_cours: { label: "En attente", tone: "var(--color-faint)" },
+  };
+  const tenues = s.promises.filter((p) => p.status === "tenue").length;
+  const trahies = s.promises.filter((p) => p.status === "trahie").length;
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-1.5 mb-1">
+        <Tag tone="var(--color-good)">{tenues} tenue{tenues > 1 ? "s" : ""}</Tag>
+        <Tag tone="var(--color-bad)">{trahies} trahie{trahies > 1 ? "s" : ""}</Tag>
+        <Tag tone="var(--color-faint)">{s.promises.length - tenues - trahies} en cours</Tag>
+      </div>
+      {s.promises.map((p) => {
+        const def = PROMESSES.find((d) => d.id === p.id);
+        const m = meta[p.status];
+        return (
+          <div key={p.id} className="card-flat px-2.5 py-2" style={{ borderLeft: `3px solid ${m.tone}` }}>
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-[13px]">{def?.label ?? p.id}</span>
+              <Tag tone={m.tone}>{m.label}</Tag>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
+// Barre du haut
+// ---------------------------------------------------------------------------
 
 export function TopBar({ s }: { s: GameState }) {
   const deriveTier = s.derive >= 8 ? 3 : s.derive >= 5 ? 2 : s.derive >= 3 ? 1 : 0;
   return (
-    <div className="flex items-center justify-between gap-4 mb-5 border-b border-ink-700 pb-4">
-      <div className="flex items-center gap-4">
-        <div className="portrait-officiel" title="Le portrait officiel">
-          <span style={{ fontSize: `calc(var(--portrait-size) * 0.45)` }}>{s.bio.prenom ? s.bio.prenom[0] + s.bio.nom[0] : "RF"}</span>
+    <div className="flex items-center justify-between gap-4 mb-5 pb-4 border-b" style={{ borderColor: "var(--color-line-soft)" }}>
+      <div className="flex items-center gap-3">
+        <div className="portrait-officiel">
+          <span style={{ fontSize: `calc(var(--portrait-size) * 0.4)` }}>{s.bio.prenom ? s.bio.prenom[0] + s.bio.nom[0] : "RF"}</span>
         </div>
         <div>
-          <div className="font-serif text-lg tracking-wide">
+          <div className="font-serif text-[17px] leading-tight">
             {s.bio.prenom} {s.bio.nom}
           </div>
-          <div className="text-xs text-paper-500">
+          <div className="text-[11px]" style={{ color: "var(--color-faint)" }}>
             {s.act === "mandat" || s.act === "crise" ? `Mandat ${s.mandat} · T${s.trimestre} ${s.year} · ${s.bio.age} ans` : `${s.bio.age} ans`}
           </div>
         </div>
         {deriveTier < 2 && (
-          <div className="w-8 h-8 rounded-sm border border-ink-600 flex items-center justify-center text-xs opacity-60" title="La photo de famille, sur le bureau">
+          <div
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-[13px]"
+            title="La photo de famille, sur le bureau"
+            style={{ border: "1px solid var(--color-line)", color: "var(--color-env)" }}
+          >
             ❦
           </div>
         )}
       </div>
       <div className="text-right">
-        <div className="press-une text-2xl tracking-[0.3em] text-paper-300">MANDAT</div>
-        {(s.act === "mandat" || s.act === "crise") && <Pips n={s.pc} max={s.pcMax} />}
+        <div className="press-une text-xl tracking-[0.3em]" style={{ color: "var(--color-muted)" }}>
+          MANDAT
+        </div>
+        {(s.act === "mandat" || s.act === "crise") && (
+          <div className="flex gap-1.5 items-center justify-end mt-1.5">
+            {Array.from({ length: s.pcMax }).map((_, i) => (
+              <div key={i} className="pip" data-on={i < s.pc} />
+            ))}
+            <span className="text-[10px] ml-1" style={{ color: "var(--color-faint)" }}>
+              capital
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-export { SEGMENTS };
+export { SEGMENTS, CAMP_TONE };

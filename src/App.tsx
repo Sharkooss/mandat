@@ -4,7 +4,7 @@ import Creation from "./ui/Creation";
 import Campaign from "./ui/Campaign";
 import Mandate from "./ui/Mandate";
 import Final from "./ui/Final";
-import { EventView, TopBar } from "./ui/components";
+import { EventView, Tag } from "./ui/components";
 
 export default function App() {
   const game = useGame((g) => g.game);
@@ -17,8 +17,10 @@ export default function App() {
     <div data-derive={deriveTier} className="min-h-screen">
       {game.act === "creation" && <Creation />}
       {game.act === "ascension" && (
-        <div className="max-w-2xl mx-auto pt-10 px-6 pb-16">
-          <div className="text-xs uppercase tracking-widest text-paper-500 mb-4">Acte II — L'ascension</div>
+        <div className="max-w-2xl mx-auto pt-10 px-5 pb-16">
+          <div className="mb-4">
+            <Tag tone="var(--color-pouvoir)">Acte II — L'ascension</Tag>
+          </div>
           <EventView s={game} />
         </div>
       )}
@@ -26,7 +28,7 @@ export default function App() {
       {(game.act === "mandat" || game.act === "crise") && <Mandate s={game} />}
       {game.act === "fin" && game.ending && <Final s={game} />}
       {game.act !== "fin" && game.act !== "creation" && (
-        <div className="fixed bottom-2 right-3 text-[10px] text-paper-500 opacity-50">
+        <div className="fixed bottom-2 right-3 text-[10px] opacity-40" style={{ color: "var(--color-faint)" }}>
           <button className="underline" onClick={() => { if (confirm("Abandonner cette carrière ?")) useGame.getState().abandon(); }}>
             abandonner
           </button>

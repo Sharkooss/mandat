@@ -163,10 +163,14 @@ export interface Choice {
 
 export type EventKind = "standard" | "intrigue" | "crise" | "monde" | "perso" | "ascension" | "campagne";
 
+/** La rareté d'un événement — affichée au joueur, pour le plaisir de la trouvaille. */
+export type Rarete = "commune" | "peu_commune" | "rare" | "legendaire";
+
 export interface GameEvent {
   id: string;
   kind: EventKind;
   titre: string;
+  rarete?: Rarete;
   /** Personnage qui rapporte — son biais colore le texte. */
   source?: string;
   texte: string | ((s: GameState) => string);
@@ -299,6 +303,11 @@ export interface GameState {
   queue: string[]; // événements du tour en attente
   currentEvent: string | null;
   resolution: string | null; // texte de résolution du dernier choix
+  lastDeltas: import("./deltas").Delta[];
+  lastSignals: string[];
+  /** Variation de chaque indicateur sur le trimestre écoulé (flèches de tendance). */
+  trends: Record<string, number>;
+  trendBase: Record<string, number>;
   press: PressItem[];
   pressArchive: { turn: number; items: PressItem[] }[];
   log: LogEntry[];
