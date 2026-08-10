@@ -355,6 +355,8 @@ export interface EndingResult {
   rarete: "très commune" | "commune" | "peu commune" | "rare" | "exceptionnelle";
   une: string; // la une du lendemain
   epitaphe: string; // sous-titre de la carte de fin
+  /** La scène du dernier jour — comment ça s'est terminé, concrètement. */
+  epilogue: string[];
   notice: string[]; // paragraphes de la notice biographique
   verdict: {
     axesNationaux: { nom: string; note: number }[]; // /20

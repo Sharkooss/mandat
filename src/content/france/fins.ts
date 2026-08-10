@@ -2,6 +2,9 @@
 import type { Rng } from "../../engine/rng";
 import { PRESIDENTS, REGIONS } from "./data";
 import { bordMeta } from "../../engine/bord";
+import { clamp } from "../../engine/ctx";
+import { nomCompletDe } from "../../engine/noms";
+import { epilogue, indicateursCritiques } from "./epilogues";
 
 // ---------------------------------------------------------------------------
 // Les causes de sortie détectées par le moteur
@@ -16,6 +19,9 @@ export type EndingCause =
   | "assassinat"
   | "mort_epuisement"
   | "fin_mandats"
+  | "statues"
+  | "memoires"
+  | "geneve"
   | "retrait_volontaire"
   | "consulat"
   | "consulat_perdu"
@@ -23,15 +29,63 @@ export type EndingCause =
   | "hiver"
   | "republique_populaire"
   | "etat_national"
+  | "chute_regime"
+  | "insurrection"
+  | "prison"
   | "referendum_demission";
+
+/**
+ * Le pays tient-il encore debout ? Un régime ne tombe pas sur un mauvais
+ * chiffre : il tombe quand plusieurs cèdent en même temps et qu'il ne reste
+ * personne pour amortir.
+ */
+function effondrement(s: GameState): boolean {
+  return indicateursCritiques(s).length >= 4;
+}
 
 /** Vérifie les fins « dures » en fin de semestre. Retourne une cause ou null. */
 export function checkEndings(s: GameState, rng: Rng): EndingCause | null {
   if (s.flags["hiver_declenche"]) return "hiver";
-  // Les deux bascules autoritaires closent la partie : une fois le régime
-  // installé, il n'y a plus de semestre à jouer, seulement une durée à subir.
-  if (s.flags["republique_populaire"]) return "republique_populaire";
-  if (s.flags["etat_national"]) return "etat_national";
+  // Les bascules autoritaires closent la partie — mais un régime installé sur
+  // un pays en ruine ne dure pas : il se fait renverser. C'est la même dérive
+  // qui produit le règne tranquille et la fin dans la cour d'honneur ; ce qui
+  // les sépare, c'est l'état dans lequel on a laissé le pays.
+  if (s.flags["republique_populaire"] || s.flags["etat_national"]) {
+    if (effondrement(s) && (s.power.armee < 50 || s.hidden.agitation > 60)) return "chute_regime";
+    return s.flags["republique_populaire"] ? "republique_populaire" : "etat_national";
+  }
+  // La justice finit par rattraper les présidences les plus abîmées.
+  if (s.flags["chute_judiciaire"]) return "prison";
+
+  // L'insurrection : jamais sans avertissement. Le premier semestre où le pays
+  // décroche, le joueur reçoit une alerte et un événement pour réagir. C'est
+  // seulement s'il laisse filer que la rue prend la main.
+  if (effondrement(s) && s.hidden.agitation > 62 && !s.flags["insurrection_ecrasee"]) {
+    const alerte = s.flags["insurrection_alerte"] as number | undefined;
+    if (alerte === undefined) {
+      s.flags["insurrection_alerte"] = s.turnCount;
+      s.delayed.push({ eventId: "insurrection_montee", minTurn: s.turnCount + 1, maxTurn: s.turnCount + 2, chance: 1 });
+      // La une est confiée au briefing du semestre suivant : `genBriefing`
+      // repart d'une presse vide, tout ce qu'on pousserait ici serait perdu.
+      s.flags["une_speciale"] = "« LE PAYS DÉCROCHE » — six préfectures signalent des blocages qu'elles ne savent plus lever";
+      s.flags["une_speciale_ton"] = "hostile";
+      s.log.push({ turn: s.turnCount, text: "Le pays a commencé à décrocher : blocages, préfectures débordées." });
+    } else if (s.turnCount > alerte && rng.chance(0.55)) {
+      if (s.power.armee >= 55) {
+        // L'armée tient la rue. Le pouvoir survit — et change de nature.
+        s.hidden.agitation = clamp(s.hidden.agitation - 30);
+        s.country.cohesion = clamp(s.country.cohesion - 10);
+        s.derive = clamp(s.derive + 2, 0, 12);
+        s.flags["insurrection_ecrasee"] = true;
+        s.flags["une_speciale"] = "« L'ORDRE RÉTABLI » — bilan officiel : onze morts. Bilan des hôpitaux : davantage.";
+        s.flags["une_speciale_ton"] = "servile";
+        s.log.push({ turn: s.turnCount, text: "Un soulèvement populaire a été écrasé par l'armée." });
+      } else {
+        return "insurrection";
+      }
+    }
+  }
+
   if (s.flags["censure_votee"] && !s.flags["censure_geree"]) {
     // Une censure ne tue pas toujours : elle tue quand tout le reste vacille.
     s.flags["censure_geree"] = true;
@@ -362,6 +416,30 @@ const ENDINGS: Record<string, EndingMeta> = {
     une: () => "—",
     epitaphe: () => "Il n'y a plus personne pour écrire l'histoire.",
   },
+  insurrection: {
+    id: "insurrection", nom: "Le soulèvement", famille: "Sortie violente", rarete: "peu commune",
+    une: () => "« LE PAYS A REPRIS SES CLÉS » — dix-sept préfectures occupées, un palais vide, une page blanche.",
+    epitaphe: () => "Vous avez gouverné un pays qui ne répondait plus. Il a fini par répondre.",
+  },
+  chute_regime: {
+    id: "chute_regime", nom: "La chute", famille: "Sortie violente", rarete: "rare",
+    une: (s) => s.bord <= -5
+      ? "« LE COMITÉ N'EXISTE PLUS » — édition libre, première depuis onze ans, imprimée dans la nuit."
+      : "« LE RÉGIME EST TOMBÉ » — édition libre, première depuis des années, tirée à un million d'exemplaires.",
+    epitaphe: (s) => s.bord <= -5
+      ? "Vous vouliez tout donner au peuple. Il est venu chercher le reste lui-même."
+      : "Vous aviez fait du pays une forteresse. Elle n'avait de murs que vers l'intérieur.",
+  },
+  prison: {
+    id: "prison", nom: "L'instruction", famille: "Sortie judiciaire", rarete: "rare",
+    une: () => "« MIS EN EXAMEN, PUIS CONDAMNÉ » — Le Fil publie les trois cents pages. Le reste de la presse suit à midi.",
+    epitaphe: () => "Ce n'est pas le pouvoir qui vous a perdu. C'est une pièce jointe, et quelqu'un d'assez patient pour l'attendre.",
+  },
+  statues: {
+    id: "statues", nom: "Les statues", famille: "Sortie honorable", rarete: "exceptionnelle",
+    une: () => "« LA DÉCENNIE » — et, sous le titre, rien d'autre qu'une photo de la cour d'honneur, vide.",
+    epitaphe: () => "Un pays rendu en meilleur état qu'on ne l'a reçu, sans avoir rien pris au passage. Vos prédécesseurs, presque tous, ont dû aménager cette phrase.",
+  },
 };
 
 export function buildEnding(s: GameState, cause: EndingCause): EndingResult {
@@ -370,7 +448,24 @@ export function buildEnding(s: GameState, cause: EndingCause): EndingResult {
     // La sortie de fin de mandats se décline selon l'état du pays et du joueur.
     const m = moyennes(s);
     const honorable = s.derive <= 2 && !s.flags["carnets_proces"];
-    if (honorable && s.mandat >= 2 && s.power.popularite >= 45 && m.croissance >= 1.1 && s.country.cohesion >= 45) meta = ENDINGS.fin_mandats;
+    // Les statues ne s'obtiennent pas en évitant les catastrophes : il faut
+    // rendre le pays meilleur qu'on l'a trouvé, sur tous les tableaux à la fois.
+    const exemplaire =
+      honorable &&
+      s.mandat >= 2 &&
+      s.derive === 0 &&
+      s.power.popularite >= 55 &&
+      m.croissance >= 1.6 &&
+      s.country.cohesion >= 58 &&
+      s.country.services >= 55 &&
+      s.country.prestige >= 75 &&
+      m.detteDelta <= 0 &&
+      s.player.integrite >= 60;
+    // La justice peut rattraper une sortie même arrivée à son terme.
+    const rattrape = (s.flags["carnets_proces"] || s.flags["watergate_public"]) && s.power.justice < 32 && s.player.integrite < 30;
+    if (rattrape) meta = ENDINGS.prison;
+    else if (exemplaire) meta = ENDINGS.statues;
+    else if (honorable && s.mandat >= 2 && s.power.popularite >= 45 && m.croissance >= 1.1 && s.country.cohesion >= 45) meta = ENDINGS.fin_mandats;
     else if (honorable && s.country.prestige >= 78) meta = ENDINGS.geneve;
     else meta = ENDINGS.memoires;
   } else if (cause === "retrait_volontaire") {
@@ -384,6 +479,7 @@ export function buildEnding(s: GameState, cause: EndingCause): EndingResult {
       id: meta.id, nom: meta.nom, famille: meta.famille, rarete: meta.rarete,
       une: "",
       epitaphe: meta.epitaphe(s),
+      epilogue: [],
       notice: [
         "L'escalade a atteint le dernier cran une nuit d'hiver. Les archives s'arrêtent à 23h41.",
         "Il n'y a pas de une du lendemain. Il n'y a pas de lendemain, pas de notice, pas de comparatif.",
@@ -393,6 +489,9 @@ export function buildEnding(s: GameState, cause: EndingCause): EndingResult {
       comparatif: [],
     };
   }
+  // L'épilogue suit la fin réellement obtenue, pas la cause brute : « fin de
+  // mandats » peut aussi bien mener aux statues qu'à la cellule.
+  const finale = meta.id as EndingCause;
   return {
     id: meta.id,
     nom: meta.nom,
@@ -400,6 +499,7 @@ export function buildEnding(s: GameState, cause: EndingCause): EndingResult {
     rarete: meta.rarete,
     une,
     epitaphe: meta.epitaphe(s),
+    epilogue: epilogue(s, finale),
     notice: noticeBio(s, cause, une),
     verdict: verdict(s, cause),
     comparatif: comparatif(s),
@@ -410,7 +510,197 @@ export function buildEnding(s: GameState, cause: EndingCause): EndingResult {
 // Événements de bascule de fin (Consulat, Cincinnatus, escalade, mandat unique)
 // ---------------------------------------------------------------------------
 
+/**
+ * Les casseroles accumulées. Une seule ne fait jamais tomber personne ; c'est
+ * la pile qui devient un dossier, et le dossier qui devient une instruction.
+ */
+const CASSEROLES: { flag: string; texte: string }[] = [
+  { flag: "pot_de_vin_ascension", texte: "une enveloppe encaissée du temps de la mairie" },
+  { flag: "these_arrangee", texte: "trois chapitres de thèse empruntés" },
+  { flag: "carnets_proces", texte: "les carnets du trésorier" },
+  { flag: "watergate_public", texte: "les écoutes d'une journaliste" },
+  { flag: "amities_marseille", texte: "des amitiés du littoral qu'on aurait préféré oublier" },
+  { flag: "dette_baron", texte: "les services rendus au baron local" },
+  { flag: "dette_industriel", texte: "un décret taillé pour un industriel" },
+  { flag: "dette_banquier", texte: "un carnet d'adresses qui engage" },
+  { flag: "repression_dure", texte: "onze morts que le bilan officiel n'a jamais reconnus" },
+  { flag: "ferrand_surveillee", texte: "la surveillance d'une journaliste" },
+  { flag: "emploi_familial", texte: "un emploi familial jamais occupé" },
+  { flag: "don_libanais", texte: "un don étranger passé par trois comptes" },
+  { flag: "rives_marche_truque", texte: "un appel d'offres cousu main" },
+  { flag: "rapport_etouffe", texte: "un rapport d'inspection disparu" },
+];
+
+function casseroles(s: GameState): string[] {
+  return CASSEROLES.filter((c) => s.flags[c.flag]).map((c) => c.texte);
+}
+
 export const EVENTS_FINS: GameEvent[] = [
+  {
+    id: "ferrand_dossier_final",
+    kind: "intrigue",
+    titre: "Le dossier",
+    rarete: "rare",
+    once: true,
+    weight: (s) => {
+      const f = s.characters["ferrand"];
+      if (!f?.vivant) return 0;
+      const n = casseroles(s).length;
+      if (n < 2 || s.turnCount < 4) return 0;
+      // Plus la pile est haute et l'intégrité basse, plus la publication approche.
+      return Math.min(8, n * 1.5 + (s.player.integrite < 35 ? 2 : 0) + f.rancune * 0.03);
+    },
+    texte: (s) => {
+      const liste = casseroles(s);
+      const trois = liste.slice(0, 3).join(" ; ");
+      return `${nomCompletDe(s, "ferrand")} demande un droit de réponse sous quarante-huit heures. La lettre fait deux pages et cite, pièces à l'appui : ${trois}${liste.length > 3 ? ` — et ${liste.length - 3} autre${liste.length > 4 ? "s" : ""} point${liste.length > 4 ? "s" : ""}` : ""}. Ce n'est pas un article : c'est une instruction judiciaire écrite d'avance, à laquelle il ne manque qu'un procureur. Votre avocat a lu la lettre deux fois, puis a demandé si vous étiez assis.`;
+    },
+    choices: [
+      {
+        id: "tout_reconnaitre",
+        label: "Tout reconnaître, avant publication",
+        detail: "Prendre les devants. La chute sera dure — mais ce sera une chute politique, pas judiciaire.",
+        risque: 2,
+        aptitude: "integrite",
+        effects: (c) => {
+          c.adj({ power: { popularite: -18, parti: -14, presse: 10 }, player: { integrite: 12 } });
+          c.rel("ferrand", { rancune: -20, loyaute: 10 });
+          c.flag("confession_publique");
+          c.log("Vous avez tout reconnu publiquement avant la parution du dossier.");
+          return "Vous prenez la parole avant elle, sans notes, pendant vingt-deux minutes. Vous ne minimisez rien — c'est précisément ce qui désarme le dispositif : il n'y a plus de révélation à faire, seulement un homme qui raconte ce qu'il a fait. Votre popularité s'effondre. Les juges, eux, héritent d'un dossier sans dissimulation, ce qui change tout pour la suite. L'article paraît quand même. Il est moins lu.";
+        },
+      },
+      {
+        id: "etouffer_dossier",
+        label: "Étouffer",
+        detail: "Actionner ce qui reste : le propriétaire du titre, les services, la pression.",
+        risque: 3,
+        aptitude: "cynisme",
+        effects: (c) => {
+          const leviers = c.s.power.presse > 55 || c.s.derive >= 5;
+          if (leviers && c.rng.chance(0.55)) {
+            c.derive(2);
+            c.adj({ power: { presse: -10 }, player: { integrite: -10 } });
+            c.rel("ferrand", { rancune: 35 });
+            c.flag("dossier_etouffe");
+            c.log("Le dossier a été étouffé avant parution.");
+            return "Le titre ne paraît pas. Officiellement, « un problème de sourçage ». La rédaction sait, la profession sait, et une note de six lignes circule dans tous les journaux du pays sans qu'aucun ne l'imprime. Vous avez gagné six mois et une ennemie définitive — elle a désormais deux sujets : le dossier, et ce que vous avez fait pour l'enterrer.";
+          }
+          c.adj({ power: { presse: -20, popularite: -14, justice: -12 }, player: { integrite: -12 } });
+          c.rel("ferrand", { rancune: 40 });
+          c.flag("chute_judiciaire");
+          c.log("La tentative d'étouffer le dossier a déclenché la chute judiciaire.");
+          return "La manœuvre fuite avant le dossier lui-même. C'est toujours ce qui arrive : on n'étouffe pas une enquête, on lui ajoute un chapitre. Le parquet s'autosaisit du chapitre, puis du reste. À midi, votre avocat vous conseille de ne plus utiliser votre téléphone.";
+        },
+      },
+      {
+        id: "attaquer_justice",
+        label: "Attaquer en diffamation",
+        detail: "Le terrain judiciaire. Il faut que les pièces soient fausses.",
+        risque: 3,
+        aptitude: "strategie",
+        effects: (c) => {
+          if (c.s.player.integrite >= 50 && casseroles(c.s).length <= 2) {
+            c.adj({ power: { presse: -6, popularite: 3 }, player: { integrite: 3 } });
+            c.rel("ferrand", { rancune: 15 });
+            return "Vous attaquez, et vous avez raison d'attaquer : deux des trois pièces sont des reconstitutions, et la troisième ne prouve pas ce qu'elle prétend. Le tribunal tranchera dans dix-huit mois, en votre faveur, dans l'indifférence générale — mais le doute, lui, est mort le jour où vous avez assigné plutôt que dénié.";
+          }
+          c.adj({ power: { presse: -14, popularite: -10, justice: -8 }, player: { integrite: -6 } });
+          c.flag("chute_judiciaire");
+          c.log("La procédure en diffamation s'est retournée : les pièces étaient authentiques.");
+          return "L'audience est publique. C'était l'idée : montrer qu'on n'a rien à cacher. Pendant quatre heures, l'avocat de la défense fait entrer les pièces une par une au dossier — authentifiées, datées, contradictoires avec vos déclarations. Vous avez fourni vous-même à la justice le cadre qui lui manquait. Le parquet ouvre son information le lendemain matin.";
+        },
+      },
+      {
+        id: "ne_rien_faire_dossier",
+        label: "Ne pas répondre",
+        detail: "Laisser passer. Parfois, ça passe.",
+        effects: (c) => {
+          const grave = casseroles(c.s).length >= 4;
+          c.adj({ power: { popularite: -10, presse: -6 } });
+          if (grave) {
+            c.flag("chute_judiciaire");
+            c.log("Le dossier est paru sans réponse. L'instruction a suivi.");
+            return "Le silence est une réponse et tout le monde la lit correctement. Le dossier paraît sur six pages, avec les fac-similés. Le parquet national financier s'autosaisit à 14h. Votre communicante vous explique qu'il n'y a plus de séquence à construire — il y a un calendrier judiciaire, et il ne vous appartient pas.";
+          }
+          c.flag("dossier_paru");
+          return "Le dossier paraît. Il est solide, il est grave, et il ne suffit pas : il manque la pièce qui transforme une accusation en infraction. Vous perdez dix points et la moitié de votre crédit. Vous gardez la main. Ce sera à refaire — les journalistes qui ont trouvé la moitié d'un dossier reviennent toujours chercher l'autre.";
+        },
+      },
+    ],
+  },
+  {
+    id: "insurrection_montee",
+    kind: "crise",
+    titre: "Le pays ne répond plus",
+    weight: 0,
+    texte: (s) => {
+      const maux = indicateursCritiques(s).slice(0, 3).join(", ");
+      return `Ce n'est plus une manifestation, c'est une carte. Dix-neuf départements signalent des blocages que les préfets ne savent plus lever ; deux hôtels de région sont occupés depuis six jours. Les renseignements ne parlent plus de « frémissement » mais de « bascule ». Ce qui tient encore le pays tient par habitude, et vous laissez derrière vous ${maux}. ${nomCompletDe(s, "verdier")} attend une réponse sur la réquisition. ${nomCompletDe(s, "rochefort")} attend une réponse sur le budget. Les deux savent que vous ne pouvez pas faire les deux.`;
+    },
+    choices: [
+      {
+        id: "concessions",
+        label: "Céder. Beaucoup, tout de suite.",
+        detail: "Gel des prix, moratoire, milliards non financés. Ça calme, et ça coûte pour longtemps.",
+        risque: 2,
+        aptitude: "charisme",
+        effects: (c) => {
+          c.adj({ hidden: { agitation: -30 }, country: { marge: -18, dette: 6, cohesion: 6 }, power: { popularite: 6 } });
+          c.flag("insurrection_alerte", false);
+          c.flag("concessions_insurrection");
+          c.log("Face au soulèvement, vous avez cédé sur tout — et financé le calme à crédit.");
+          return "Le paquet est annoncé un dimanche soir, chiffré nulle part, promis partout. Les blocages se lèvent en quatre jours. Bercy vous remet une note d'une page qui ne contient qu'un tableau et aucune phrase — vous venez d'acheter la paix sociale avec l'argent des dix prochaines années. La rue est rentrée. Elle sait maintenant comment on vous fait plier.";
+        },
+      },
+      {
+        id: "reformer_vite",
+        label: "Traiter la cause, pas la fièvre",
+        detail: "Un plan de fond sur les services publics. Lent — s'il vous reste du temps.",
+        risque: 3,
+        aptitude: "strategie",
+        effects: (c) => {
+          const tenable = c.s.country.marge > 25 && c.s.power.sieges >= 260;
+          c.adj({ country: { services: 12, cohesion: 5, marge: -10 }, hidden: { agitation: tenable ? -22 : -8 } });
+          if (tenable) {
+            c.flag("insurrection_alerte", false);
+            c.log("Vous avez répondu au soulèvement par un plan de fond sur les services publics.");
+            return "Réouverture de lignes, de guichets, de maternités : des choses concrètes, visibles, que les gens peuvent aller vérifier à pied. Ça met six semaines à se voir et ça se voit. Les blocages se défont un par un, sans négociation spectaculaire — c'est la seule sortie de crise dont personne ne fera un film.";
+          }
+          return "Le plan est annoncé. Il est bon. Il est aussi impossible à financer et impossible à faire voter, et tout le monde s'en aperçoit en quarante-huit heures. Vous avez répondu à la colère par un document. Les blocages, eux, tiennent.";
+        },
+      },
+      {
+        id: "reprimer",
+        label: "Réquisitionner. Faire dégager.",
+        detail: "L'armée dans la rue. Si elle vous suit.",
+        risque: 3,
+        aptitude: "cynisme",
+        effects: (c) => {
+          if (c.s.power.armee < 45) {
+            c.adj({ power: { armee: -8, popularite: -8 }, hidden: { agitation: 12, coup: 8 } });
+            c.log("L'état-major a refusé de faire dégager les blocages.");
+            return `L'ordre est donné. L'état-major demande une instruction écrite, puis un cadre juridique, puis un délai. C'est un refus en trois actes, poli, et parfaitement lisible par tout le monde — y compris par les blocages, qui doublent dans la semaine. Vous venez d'apprendre en public que vous ne commandez pas l'armée.`;
+          }
+          c.adj({ hidden: { agitation: -26, coup: 5 }, country: { cohesion: -12, securite: 6 }, power: { popularite: -6, presse: -8 } });
+          c.derive(2);
+          c.flag("insurrection_alerte", false);
+          c.flag("repression_dure");
+          c.log("Vous avez fait dégager les blocages par la force. Il y a eu des morts.");
+          return "Les blindés légers arrivent à l'aube sur trois ronds-points. Ça dure quarante minutes et ça marche. Le bilan officiel parle de onze morts ; les hôpitaux comptent autrement, et un interne poste le décompte réel à 3h du matin. Le pays est calme le lundi. Il ne vous le pardonnera pas.";
+        },
+      },
+      {
+        id: "ignorer_montee",
+        label: "Tenir. Ça retombera.",
+        detail: "Ça retombe, parfois.",
+        effects: (c) => {
+          c.adj({ hidden: { agitation: 8 }, power: { popularite: -4 } });
+          return "Vous maintenez l'agenda, les déplacements, les inaugurations. Le pouvoir consiste aussi à décider que quelque chose n'existe pas — la méthode a déjà fonctionné, deux fois, et elle a l'avantage de ne rien coûter tout de suite. Les cartes des préfets, elles, continuent de se remplir.";
+        },
+      },
+    ],
+  },
   {
     id: "consulat_referendum",
     kind: "intrigue",

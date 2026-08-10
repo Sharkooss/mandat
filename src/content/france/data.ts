@@ -385,12 +385,12 @@ export const NOMS = [
   "Mercadier", "Ollivier", "Raynaud", "Salvat", "Thibault", "Vergne", "Ancelin", "Bouvier", "Darrieux", "Gaillard",
   "Joubert", "Lauret", "Monnier", "Poitevin", "Reboul", "Sénéchal", "Turpin", "Ledoux", "Beauvais", "Chambon",
   "Dutertre", "Fresnay", "Lestrade", "Marsac", "Solignac", "Vaugeois", "Coquelin", "Larcher", "Miquel", "Nogaret",
-  "Pineau", "Revel", "Sorel", "Tourreau", "Valdenaire", "Fabiani", "Casanova", "Pieri", "Alberti", "Ferrandi",
+  "Pineau", "Revel", "Sorel", "Tourreau", "Valdenaire", "Fabiani", "Casanova", "Pieri", "Malaterre", "Ferrandi",
 ];
 
 /** Les personnages qui ne viennent pas du même monde gardent leur texture. */
 export const PRENOMS_M_ALLEMAGNE = ["Klaus", "Dietrich", "Helmut", "Reinhard", "Matthias", "Jürgen", "Wolfgang", "Andreas", "Stefan", "Lothar", "Gerhard", "Konrad"];
-export const NOMS_ALLEMAGNE = ["Weiss", "Brandt", "Kessler", "Hofmann", "Lindner", "Reuter", "Bergmann", "Kuhn", "Steinbach", "Kleinert", "Zimmerling", "Naumann"];
-export const PRENOMS_M_MAGHREB = ["Karim", "Samir", "Rachid", "Mehdi", "Yacine", "Farid", "Nabil", "Sofiane", "Tarek", "Amine"];
-export const PRENOMS_F_MAGHREB = ["Nadia", "Leïla", "Samira", "Yasmina", "Amina", "Farida", "Sonia", "Malika", "Nour", "Djamila"];
-export const NOMS_MAGHREB = ["Bensalah", "Belkacem", "Haddad", "Benali", "Cherif", "Mansouri", "Ziani", "Boukhari", "Amrani", "Slimani", "Ouazani", "Taleb"];
+export const NOMS_ALLEMAGNE = ["Brandt", "Kessler", "Hofmann", "Lindner", "Reuter", "Bergmann", "Kuhn", "Steinbach", "Kleinert", "Zimmerling", "Naumann", "Ehrhardt"];
+export const PRENOMS_M_MAGHREB = ["Samir", "Rachid", "Mehdi", "Yacine", "Farid", "Nabil", "Sofiane", "Tarek", "Amine", "Hakim"];
+export const PRENOMS_F_MAGHREB = ["Leïla", "Samira", "Yasmina", "Amina", "Farida", "Sonia", "Malika", "Nour", "Djamila", "Zohra"];
+export const NOMS_MAGHREB = ["Haddad", "Benali", "Cherif", "Mansouri", "Ziani", "Boukhari", "Amrani", "Slimani", "Ouazani", "Taleb", "Meziane", "Zerrouki"];

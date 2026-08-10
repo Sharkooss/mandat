@@ -3,6 +3,7 @@ import type { Rng } from "./rng";
 import { clamp, agitationRapportee, croissanceAnnoncee } from "./ctx";
 import { getEvent, standardEvents } from "./registry";
 import { bordMeta } from "./bord";
+import { nomCompletDe } from "./noms";
 
 // ---------------------------------------------------------------------------
 // Symptômes : la seule fenêtre du joueur sur les jauges cachées.
@@ -118,8 +119,15 @@ function driftGauges(s: GameState, rng: Rng): void {
     (verdier?.vivant && verdier.enPoste ? Math.max(0, verdier.ambition - 60) * 0.1 : 0);
   h.coup = clamp(h.coup + (coupPression > 0.5 ? coupPression * 0.9 : -1.5));
 
-  // Le risque d'assassinat : dérive, cohésion, purges.
-  const assPression = s.derive * 0.25 + Math.max(0, 35 - s.country.cohesion) * 0.05 + h.paranoia * 0.02;
+  // Le risque d'assassinat : dérive, cohésion, purges — et les rancunes qu'on
+  // a laissées mûrir. Une rancune n'est pas un chiffre décoratif : quelqu'un
+  // qui vous en veut depuis assez longtemps finit par avoir des idées, ou par
+  // laisser une porte ouverte à qui en a.
+  const rancuniers = Object.values(s.characters).filter((c) => c.vivant && c.id !== "conjoint");
+  const pire = rancuniers.reduce<(typeof rancuniers)[number] | null>((a, b) => (a && a.rancune >= b.rancune ? a : b), null);
+  const rancunes = rancuniers.reduce((n, c) => n + Math.max(0, c.rancune - 45), 0);
+  if (pire && pire.rancune >= 50) s.flags["rancune_max"] = pire.id;
+  const assPression = s.derive * 0.25 + Math.max(0, 35 - s.country.cohesion) * 0.05 + h.paranoia * 0.02 + rancunes * 0.035;
   h.assassinat = clamp(h.assassinat + (assPression > 0.4 ? assPression * 0.7 : -0.8));
 
   h.paranoia = clamp(h.paranoia + s.derive * 0.35 - 0.8);
@@ -208,7 +216,15 @@ export function genBriefing(s: GameState, rng: Rng): void {
   // La une : dépend de la presse, de la popularité, et de la dérive.
   let une: string;
   let tone: PressItem["tone"];
-  if (s.derive >= 8) {
+  // Une une imposée par un événement de fin de semestre passe avant tout le
+  // reste : elle est consommée une seule fois.
+  const imposee = s.flags["une_speciale"];
+  if (typeof imposee === "string") {
+    une = imposee;
+    tone = (s.flags["une_speciale_ton"] as PressItem["tone"]) ?? "hostile";
+    delete s.flags["une_speciale"];
+    delete s.flags["une_speciale_ton"];
+  } else if (s.derive >= 8) {
     une = rng.pick(UNES_SERVILES);
     tone = "servile";
   } else if (s.power.presse < 35 || s.power.popularite < 32) {
@@ -245,6 +261,24 @@ export function genBriefing(s: GameState, rng: Rng): void {
           ? `Revue de presse étrangère : la France « ${m.label.toLowerCase()} » inquiète les places financières. Trois journaux économiques emploient le mot « expérience ». Ce n'est jamais un compliment.`
           : `Revue de presse étrangère : la France « ${m.label.toLowerCase()} » est citée en exemple par quatre partis européens que le Quai d'Orsay préférerait ne pas commenter.`,
       tone: "neutre",
+    });
+  }
+
+  // Une rancune arrivée à maturité doit se voir. Le joueur peut encore
+  // réparer, ou décider de vivre avec — mais il ne pourra pas dire qu'il
+  // n'avait pas été prévenu.
+  const rancunier = Object.values(s.characters)
+    .filter((c) => c.vivant && c.id !== "conjoint" && c.rancune >= 60)
+    .sort((a, b) => b.rancune - a.rancune)[0];
+  if (rancunier) {
+    const nom = nomCompletDe(s, rancunier.id);
+    s.press.push({
+      kind: "symptome",
+      text:
+        rancunier.rancune >= 78
+          ? `Note des services : ${nom} a pris contact avec des interlocuteurs « dont la fréquentation est inhabituelle ». Le mot « surveillance » a été rayé du document, puis réécrit.`
+          : `${nom} ne décroche plus, ne dément plus, ne commente plus. Dans ce métier, le silence prolongé n'est jamais du renoncement.`,
+      tone: "hostile",
     });
   }
 

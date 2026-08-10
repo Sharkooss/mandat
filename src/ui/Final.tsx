@@ -108,6 +108,22 @@ export default function Final({ s }: { s: GameState }) {
         <div className="press-une text-[26px] leading-tight">{N(e.une)}</div>
       </div>
 
+      {/* 2. La scène : comment ça s'est terminé, concrètement. */}
+      {e.epilogue.length > 0 && (
+        <div className="card p-6 mb-4">
+          <div className="label mb-3">Le dernier jour</div>
+          {e.epilogue.map((par, i) => (
+            <p
+              key={i}
+              className="text-[15px] leading-relaxed mb-3 last:mb-0"
+              style={{ color: "color-mix(in srgb, var(--color-text) 90%, transparent)" }}
+            >
+              {N(par)}
+            </p>
+          ))}
+        </div>
+      )}
+
       {/* La carte de fin */}
       <div className="card p-6 mb-4 text-center" style={{ borderColor: `color-mix(in srgb, ${tone} 40%, transparent)` }}>
         <div className="press-une text-lg" style={{ color: "var(--color-muted)" }}>
