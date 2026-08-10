@@ -1,6 +1,6 @@
 ﻿import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Bio, GameState } from "./engine/types";
+import type { Bio, CheckRang, GameState } from "./engine/types";
 import { makeInitialState, applyBio, rngOf, normalizeState } from "./engine/init";
 import { randomSeed } from "./engine/rng";
 import { makeCtx } from "./engine/ctx";
@@ -12,6 +12,7 @@ import { EVENTS_CAMPAGNE } from "./content/france/campagne";
 import { ACTIONS, REFORMES } from "./content/france/actions";
 import { buildEnding, checkEndings, type EndingCause } from "./content/france/fins";
 import { computeDeltas, computeSignals, pushLedger, snapshot } from "./engine/deltas";
+import { appliquerCheck, planActionCheck, planCampagneCheck, planChoixCheck, planDebatCheck } from "./engine/check";
 import {
   PRENOMS_F,
   PRENOMS_M,
@@ -25,6 +26,7 @@ import {
   SEGMENTS,
   CAST,
   PROMESSES,
+  tirerProgramme,
 } from "./content/france/data";
 
 const SEG_NOMS: Record<string, string> = Object.fromEntries(SEGMENTS.map((s) => [s.id, s.nom]));
@@ -39,6 +41,83 @@ function recordImpacts(s: GameState, avant: ReturnType<typeof snapshot>): void {
   s.lastDeltas = computeDeltas(avant, s, SEG_NOMS);
   s.lastSignals = computeSignals(avant, s);
   pushLedger(avant, s, s.lastDeltas, s.lastSignals, NOMS);
+}
+
+/**
+ * Une décision vient d'être prise : on rapproche d'autant le prochain moment
+ * de vérité, et on efface le précédent de l'écran.
+ */
+function tickCheck(s: GameState): void {
+  if (s.checkCooldown > 0) s.checkCooldown -= 1;
+  s.lastCheck = null;
+}
+
+/** Applique un choix d'événement, précédé s'il y a lieu du récit du mini-jeu. */
+function appliquerChoix(s: GameState, choiceId: string, rang?: CheckRang): void {
+  const ev = s.currentEvent ? getEvent(s.currentEvent) : null;
+  if (!ev) return;
+  const tous = [...ev.choices, ...(ev.dynamicChoices?.(s) ?? [])];
+  const choice = tous.find((c) => c.id === choiceId);
+  if (!choice) return;
+  const rng = rngOf(s);
+  const ctx = makeCtx(s, rng);
+  const avant = snapshot(s);
+  const recit = rang ? appliquerCheck(s, rng, rang) : null;
+  const texte = choice.effects(ctx);
+  s.resolution = recit ? `${recit} ${texte}` : texte;
+  recordImpacts(s, avant);
+  s.rngCalls = rng.state();
+}
+
+/** Applique une action du semestre : coût en capital, effets, journal. */
+function appliquerAction(s: GameState, actionId: string, param: string | undefined, cout: number, rang?: CheckRang): void {
+  const action = ACTIONS.find((a) => a.id === actionId);
+  if (!action) return;
+  const rng = rngOf(s);
+  const ctx = makeCtx(s, rng);
+  const avant = snapshot(s);
+  const recit = rang ? appliquerCheck(s, rng, rang) : null;
+  const texte = action.effects(ctx, param);
+  s.resolution = recit ? `${recit} ${texte}` : texte;
+  recordImpacts(s, avant);
+  s.pc -= cout;
+  s.actionsUsed.push(actionId === "reforme" ? `reforme:${param}` : actionId);
+  s.actionCooldown[actionId] = s.turnCount;
+  s.rngCalls = rng.state();
+}
+
+/** Applique la semaine de campagne, puis fait avancer le calendrier. */
+function appliquerSemaine(s: GameState, actionId: string, segmentId: string | undefined, rang?: CheckRang): void {
+  const c = s.campaign!;
+  const rng = rngOf(s);
+  const avant = snapshot(s);
+  const recit = rang ? appliquerCheck(s, rng, rang) : null;
+  const texte = applyCampaignAction(s, rng, actionId, segmentId, rang);
+  s.resolution = recit ? `${recit} ${texte}` : texte;
+  recordImpacts(s, avant);
+
+  // Un événement de campagne peut surgir — la campagne est courte,
+  // il faut qu'il s'y passe quelque chose presque chaque semaine.
+  if (rng.chance(0.5)) {
+    const pool = EVENTS_CAMPAGNE.filter((e) => !s.fired.includes(e.id) && (!e.cond || e.cond(s)));
+    if (pool.length > 0) {
+      const ev = rng.pick(pool);
+      s.fired.push(ev.id);
+      s.queue.unshift(ev.id);
+    }
+  }
+  c.week += 1;
+  s.rngCalls = rng.state();
+}
+
+function appliquerDebat(s: GameState, beats: string[], rang?: CheckRang): void {
+  const rng = rngOf(s);
+  const avant = snapshot(s);
+  const recit = rang ? appliquerCheck(s, rng, rang) : null;
+  const texte = runDebate(s, rng, beats, rang);
+  s.resolution = recit ? `${recit} ${texte}` : texte;
+  recordImpacts(s, avant);
+  s.rngCalls = rng.state();
 }
 
 export interface PantheonEntry {
@@ -63,6 +142,8 @@ interface Store {
   submitBio: (bio: Bio) => void;
   randomBio: () => void;
   chooseOption: (choiceId: string) => void;
+  /** Conclut le mini-jeu en cours et applique enfin la décision. */
+  resolveCheck: (rang: CheckRang) => void;
   continueAfter: () => void;
   startBriefing: () => void;
   beginEvents: () => void;
@@ -234,6 +315,7 @@ export const useGame = create<Store>()(
         // Sept étapes, chacune tirée dans son propre vivier : la carrière
         // ne recommence jamais deux fois par le même gymnase municipal.
         s.queue = buildAscension(rng, s);
+        s.flags["ascension_total"] = s.queue.length;
         s.currentEvent = s.queue.shift() ?? null;
         s.rngCalls = rng.state();
         set({ game: s });
@@ -267,12 +349,40 @@ export const useGame = create<Store>()(
         const tous = [...ev.choices, ...(ev.dynamicChoices?.(s) ?? [])];
         const choice = tous.find((c) => c.id === choiceId);
         if (!choice) return;
+        tickCheck(s);
         const rng = rngOf(s);
-        const ctx = makeCtx(s, rng);
-        const avant = snapshot(s);
-        s.resolution = choice.effects(ctx);
-        recordImpacts(s, avant);
+        const plan = planChoixCheck(s, rng, ev, choice);
         s.rngCalls = rng.state();
+        if (plan) {
+          // La décision est prise ; reste à la tenir. Le mini-jeu prend la main.
+          s.pendingCheck = plan;
+          set({ game: s });
+          return;
+        }
+        appliquerChoix(s, choiceId);
+        set({ game: s });
+      },
+
+      resolveCheck: (rang) => {
+        const s = clone(get().game!);
+        const plan = s.pendingCheck;
+        if (!plan) return;
+        s.pendingCheck = null;
+        s.lastCheck = { rang, titre: plan.titre };
+        switch (plan.cible.kind) {
+          case "choix":
+            appliquerChoix(s, plan.cible.choiceId, rang);
+            break;
+          case "action":
+            appliquerAction(s, plan.cible.actionId, plan.cible.param, plan.cible.cout, rang);
+            break;
+          case "campagne":
+            appliquerSemaine(s, plan.cible.actionId, plan.cible.segmentId, rang);
+            break;
+          case "debat":
+            appliquerDebat(s, plan.cible.beats, rang);
+            break;
+        }
         set({ game: s });
       },
 
@@ -281,6 +391,7 @@ export const useGame = create<Store>()(
         s.resolution = null;
         s.lastDeltas = [];
         s.lastSignals = [];
+        s.lastCheck = null;
 
         // Une crise vient-elle d'être déclenchée ?
         const criseId = s.flags["crise_a_lancer"];
@@ -321,6 +432,10 @@ export const useGame = create<Store>()(
             s.act = "campagne";
             s.currentEvent = null;
             s.phase = "briefing"; // écran programme
+            // Les mesures qu'on vous met sur la table : jamais le vivier entier.
+            const rng = rngOf(s);
+            s.programmePool = tirerProgramme(rng);
+            s.rngCalls = rng.state();
           }
           set({ game: s });
           return;
@@ -372,15 +487,16 @@ export const useGame = create<Store>()(
           cout = REFORMES.find((r) => r.id === param)?.cout ?? 2;
         }
         if (cout > s.pc) return;
+        tickCheck(s);
         const rng = rngOf(s);
-        const ctx = makeCtx(s, rng);
-        const avant = snapshot(s);
-        s.resolution = action.effects(ctx, param);
-        recordImpacts(s, avant);
-        s.pc -= cout;
-        s.actionsUsed.push(actionId === "reforme" ? `reforme:${param}` : actionId);
-        s.actionCooldown[actionId] = s.turnCount;
+        const plan = planActionCheck(s, rng, actionId, cout, param, action.nom);
         s.rngCalls = rng.state();
+        if (plan) {
+          s.pendingCheck = plan;
+          set({ game: s });
+          return;
+        }
+        appliquerAction(s, actionId, param, cout);
         set({ game: s });
       },
 
@@ -396,6 +512,20 @@ export const useGame = create<Store>()(
         const s = clone(get().game!);
         s.promises = promiseIds.map((id) => ({ id, status: "en_cours" as const }));
         const rng = rngOf(s);
+        const ctx = makeCtx(s, rng);
+
+        // Un programme n'est pas une liste de vœux : il séduit des segments et
+        // déplace votre ligne, avant même le premier meeting.
+        let inclinaison = 0;
+        for (const id of promiseIds) {
+          const def = PROMESSES.find((p) => p.id === id);
+          if (!def) continue;
+          for (const seg of def.segments) ctx.seg(seg, { soutien: 5, participation: 2 });
+          inclinaison += def.bord ?? 0;
+        }
+        const glissement = Math.max(-4, Math.min(4, Math.round(inclinaison / 2)));
+        if (glissement !== 0) ctx.bord(glissement);
+
         const opposantId = rng.chance(0.6) ? "sallenave" : "andrieu";
         s.campaign = makeCampaign("presidentielle", opposantId, opposantId === "sallenave" ? 46 : 50);
         s.rngCalls = rng.state();
@@ -404,35 +534,25 @@ export const useGame = create<Store>()(
 
       campaignWeek: (actionId, segmentId) => {
         const s = clone(get().game!);
-        const c = s.campaign!;
+        tickCheck(s);
         const rng = rngOf(s);
-        const avant = snapshot(s);
-        s.resolution = applyCampaignAction(s, rng, actionId, segmentId);
-        recordImpacts(s, avant);
-
-        // Un événement de campagne peut surgir — la campagne est courte,
-        // il faut qu'il s'y passe quelque chose presque chaque semaine.
-        if (rng.chance(0.5)) {
-          const pool = EVENTS_CAMPAGNE.filter(
-            (e) => !s.fired.includes(e.id) && (!e.cond || e.cond(s))
-          );
-          if (pool.length > 0) {
-            const ev = rng.pick(pool);
-            s.fired.push(ev.id);
-            s.queue.unshift(ev.id);
-          }
-        }
-        c.week += 1;
+        const plan = planCampagneCheck(s, rng, actionId, segmentId);
         s.rngCalls = rng.state();
+        if (plan) {
+          s.pendingCheck = plan;
+          set({ game: s });
+          return;
+        }
+        appliquerSemaine(s, actionId, segmentId);
         set({ game: s });
       },
 
       doDebate: (beats) => {
         const s = clone(get().game!);
+        tickCheck(s);
+        // Le débat se joue toujours en direct : pas de tirage, pas d'échappatoire.
         const rng = rngOf(s);
-        const avant = snapshot(s);
-        s.resolution = runDebate(s, rng, beats);
-        recordImpacts(s, avant);
+        s.pendingCheck = planDebatCheck(s, rng, beats);
         s.rngCalls = rng.state();
         set({ game: s });
       },

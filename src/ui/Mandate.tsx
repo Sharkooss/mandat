@@ -160,7 +160,7 @@ export default function Mandate({ s }: { s: GameState }) {
                   >
                     {s.resolution}
                   </RichText>
-                  <DeltaChips deltas={s.lastDeltas} signals={s.lastSignals} />
+                  <DeltaChips deltas={s.lastDeltas} signals={s.lastSignals} check={s.lastCheck} />
                   <button className="btn-primary mt-5" onClick={continueAfter}>
                     Continuer
                   </button>

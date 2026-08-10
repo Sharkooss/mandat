@@ -54,6 +54,10 @@ export function makeInitialState(seed: number): GameState {
     characters,
     segments,
     promises: [],
+    programmePool: [],
+    pendingCheck: null,
+    lastCheck: null,
+    checkCooldown: 1,
     flags: {},
     delayed: [],
     fired: [],
@@ -120,6 +124,14 @@ export function normalizeState(saved: Partial<GameState> | null | undefined): Ga
   out.actionPool = saved.actionPool ?? [];
   out.actionCooldown = saved.actionCooldown ?? {};
   out.focusCharacter = saved.focusCharacter ?? null;
+
+  // Les moments de vérité et le tirage du programme sont arrivés après coup :
+  // une partie en cours doit les récupérer sans se bloquer sur un mini-jeu
+  // dont elle ne connaît pas la cible.
+  out.programmePool = saved.programmePool ?? [];
+  out.pendingCheck = saved.pendingCheck ?? null;
+  out.lastCheck = saved.lastCheck ?? null;
+  out.checkCooldown = saved.checkCooldown ?? 1;
   return out;
 }
 

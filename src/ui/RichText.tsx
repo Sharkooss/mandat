@@ -23,8 +23,12 @@ const CAMP_TONE: Record<string, string> = {
  * Alias par personnage. On évite volontairement les patronymes ambigus :
  * « Rives » apparaît dans « la guerre des Deux Rives », « Bec » est un mot
  * courant — ceux-là ne se reconnaissent qu'au nom complet.
+ *
+ * Le conjoint a une liste vide : son nom de fiche est un tiret cadratin, et
+ * son vrai prénom est ajouté à part une fois la biographie établie.
  */
 const ALIAS: Record<string, string[]> = {
+  conjoint: [],
   rochefort: ["Hélène Rochefort", "Rochefort"],
   mazeau: ["Franck Mazeau", "Mazeau"],
   danglade: ["Cyril Danglade", "Danglade"],
@@ -59,12 +63,18 @@ interface Token {
   bon?: boolean;
 }
 
+/** Un alias doit être un vrai nom : au moins deux lettres, sinon la ponctuation se met à cliquer. */
+function aliasValide(a: string): boolean {
+  return (a.match(/\p{L}/gu)?.length ?? 0) >= 2;
+}
+
 export function tokenize(texte: string, conjointPrenom: string): Token[] {
   const entrees: { alias: string; id: string }[] = [];
   for (const c of CAST) {
-    for (const a of ALIAS[c.id] ?? [c.nom]) entrees.push({ alias: a, id: c.id });
+    for (const a of ALIAS[c.id] ?? [c.nom]) if (aliasValide(a)) entrees.push({ alias: a, id: c.id });
   }
-  if (conjointPrenom) entrees.push({ alias: conjointPrenom, id: "conjoint" });
+  if (aliasValide(conjointPrenom)) entrees.push({ alias: conjointPrenom, id: "conjoint" });
+  if (entrees.length === 0) return [{ type: "texte", contenu: texte }];
   entrees.sort((a, b) => b.alias.length - a.alias.length);
 
   const motifPersos = entrees.map((e) => escape(e.alias)).join("|");

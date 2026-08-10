@@ -288,6 +288,88 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
+/* Le moment de vérité                                                 */
+/* ------------------------------------------------------------------ */
+
+.check-piste {
+  position: relative;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #101119 0%, #171926 100%);
+  border: 1px solid var(--color-line);
+  overflow: hidden;
+}
+.check-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--color-env) 26%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--color-env) 60%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--color-env) 60%, transparent);
+}
+.check-crit {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--color-good) 46%, transparent);
+  box-shadow: 0 0 14px -2px var(--color-good);
+}
+.check-curseur {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: 0;
+  width: 3px;
+  margin-left: -1.5px;
+  background: var(--color-text);
+  box-shadow: 0 0 10px 0 var(--color-perso);
+  transition: opacity 0.2s ease;
+  animation-name: checkBalayage;
+  animation-timing-function: linear;
+  animation-direction: alternate;
+  animation-fill-mode: both;
+}
+@keyframes checkBalayage {
+  from {
+    left: 0%;
+  }
+  to {
+    left: 100%;
+  }
+}
+.check-impact {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--color-perso);
+}
+.check-temps {
+  height: 3px;
+  border-radius: 999px;
+  background: var(--color-line-soft);
+  overflow: hidden;
+}
+.check-temps-fill {
+  height: 100%;
+  width: 100%;
+  background: var(--color-perso);
+  transform-origin: left center;
+  animation-name: checkTemps;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes checkTemps {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Animations                                                          */
 /* ------------------------------------------------------------------ */
 

@@ -1,8 +1,9 @@
 ﻿import { useEffect, useState } from "react";
-import type { GameEvent, GameState, PressItem, Rarete } from "../engine/types";
+import type { CheckResult, GameEvent, GameState, PressItem, Rarete } from "../engine/types";
 import type { Delta } from "../engine/deltas";
 import { CAST, CAST_TAGS, SEGMENTS, PROMESSES } from "../content/france/data";
 import { bordMeta } from "../engine/bord";
+import { rangMeta } from "../engine/check";
 import { getEvent } from "../engine/registry";
 import { useGame } from "../store";
 import { RichText } from "./RichText";
@@ -224,10 +225,31 @@ function MetricCard({ m, trend }: { m: MetricSpec; trend?: number }) {
 // Le retour visuel après une décision
 // ---------------------------------------------------------------------------
 
-export function DeltaChips({ deltas = [], signals = [] }: { deltas?: Delta[]; signals?: string[] }) {
-  if (deltas.length === 0 && signals.length === 0) return null;
+const RANG_ICONE: Record<string, string> = { critique: "★", reussite: "✓", echec: "◇", desastre: "✕" };
+
+export function DeltaChips({
+  deltas = [],
+  signals = [],
+  check,
+}: {
+  deltas?: Delta[];
+  signals?: string[];
+  check?: CheckResult | null;
+}) {
+  if (deltas.length === 0 && signals.length === 0 && !check) return null;
+  const rang = check ? rangMeta(check.rang) : null;
   return (
     <div className="mt-4 space-y-2">
+      {check && rang && (
+        <div className="flex flex-wrap gap-1.5 items-center">
+          <span className="chip pop-in" style={{ "--tone": rang.tone } as React.CSSProperties}>
+            {RANG_ICONE[check.rang]} {rang.label}
+          </span>
+          <span className="text-[11px]" style={{ color: "var(--color-faint)" }}>
+            {check.titre}
+          </span>
+        </div>
+      )}
       {deltas.length > 0 && (
         <div className="flex flex-wrap gap-1.5 stagger">
           {deltas.map((d, i) => {
@@ -374,7 +396,7 @@ export function EventView({ s }: { s: GameState }) {
           >
             {s.resolution}
           </RichText>
-          <DeltaChips deltas={s.lastDeltas} signals={s.lastSignals} />
+          <DeltaChips deltas={s.lastDeltas} signals={s.lastSignals} check={s.lastCheck} />
           <button className="btn-primary mt-5" onClick={continueAfter}>
             Continuer
           </button>

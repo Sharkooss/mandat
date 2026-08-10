@@ -214,27 +214,125 @@ export const CAST_TAGS: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Le pool de promesses (16, en choisir 6)
+// Le vivier de promesses. On n'en voit jamais la totalité : chaque campagne
+// n'ouvre qu'une poignée de propositions, tirées par thème et par rareté. Les
+// mesures les plus folles existent — encore faut-il qu'on vous les propose.
 // ---------------------------------------------------------------------------
 
 export const PROMESSES: PromiseDef[] = [
-  { id: "deficit3", label: "Retour sous les 3 % de déficit", tenir: "De l'austérité quelque part", trahir: "Bruxelles, les marchés", segments: ["csp", "retraites"] },
-  { id: "impots", label: "Baisse d'impôts des classes moyennes", tenir: "De la marge budgétaire", trahir: "Les pavillonnaires", segments: ["pavillonnaires", "independants"] },
-  { id: "retraite_non", label: "Pas de recul de l'âge de la retraite", tenir: "Toute marge budgétaire future", trahir: "Ronds-Points garantis", miroir: "retraite_oui", segments: ["public", "periurbain"] },
-  { id: "retraite_oui", label: "Réforme des retraites", tenir: "La rue, un an de mandat", trahir: "Marchés, Bruxelles, patronat", miroir: "retraite_non", segments: ["csp", "independants"] },
-  { id: "usines", label: "Réindustrialisation : 100 usines", tenir: "Subventions, bras de fer sur les aides d'État", trahir: "Périurbain, ruraux", segments: ["periurbain", "ruraux"] },
-  { id: "hopital", label: "Plan d'urgence hôpital", tenir: "Cher, effets lents", trahir: "Public, retraités", segments: ["public", "retraites"] },
-  { id: "sante_rurale", label: "Maisons de santé en zone rurale", tenir: "Budget, médecins introuvables", trahir: "Ruraux, retraités", segments: ["ruraux", "retraites"] },
-  { id: "police", label: "Police de proximité", tenir: "Budget, réforme interne", trahir: "Pavillonnaires, quartiers", segments: ["pavillonnaires", "quartiers"] },
-  { id: "nucleaire", label: "Six réacteurs nucléaires", tenir: "Dette, une partie des urbains", trahir: "Industriels, souverainistes", segments: ["periurbain", "csp"] },
-  { id: "rail", label: "Rail du quotidien et sortie du charbon", tenir: "Budget, années de travaux", trahir: "Urbains, jeunes", segments: ["urbains", "jeunes"] },
-  { id: "ric", label: "Référendum d'initiative citoyenne", tenir: "Un instrument que vos ennemis utiliseront", trahir: "Jeunes, périurbain", segments: ["jeunes", "periurbain"] },
-  { id: "cannabis", label: "Légalisation du cannabis", tenir: "Des retraités furieux", trahir: "Les jeunes", segments: ["jeunes", "urbains"] },
-  { id: "regularisation", label: "Régularisation des travailleurs sans-papiers", tenir: "Une polémique permanente", trahir: "Urbains, quartiers", miroir: "quotas", segments: ["urbains", "quartiers"] },
-  { id: "quotas", label: "Quotas migratoires annuels", tenir: "Urbains, quartiers", trahir: "Pavillonnaires, ruraux", miroir: "regularisation", segments: ["pavillonnaires", "ruraux"] },
-  { id: "proportionnelle", label: "Proportionnelle aux législatives", tenir: "Elle change les règles de VOTRE réélection", trahir: "Jeunes, urbains", segments: ["jeunes", "urbains"] },
-  { id: "mandat_unique", label: "Mandat unique — « je ne me représenterai pas »", tenir: "Interdit la moitié des fins du jeu", trahir: "Coûte double partout", segments: ["urbains", "jeunes"] },
+  // --- Budget, impôts, travail ---------------------------------------------
+  { id: "deficit3", label: "Retour sous les 3 % de déficit", tenir: "De l'austérité quelque part", trahir: "Bruxelles, les marchés", theme: "budget", rarete: "commune", bord: 1, segments: ["csp", "retraites"] },
+  { id: "impots", label: "Baisse d'impôts des classes moyennes", tenir: "De la marge budgétaire", trahir: "Les pavillonnaires", theme: "budget", rarete: "commune", bord: 1, segments: ["pavillonnaires", "independants"] },
+  { id: "usines", label: "Réindustrialisation : 100 usines", tenir: "Subventions, bras de fer sur les aides d'État", trahir: "Périurbain, ruraux", theme: "budget", rarete: "commune", segments: ["periurbain", "ruraux"] },
+  { id: "smic", label: "SMIC à 1 800 € net", tenir: "Le patronat entre en guerre froide", trahir: "Périurbain, quartiers", theme: "budget", rarete: "commune", bord: -2, segments: ["periurbain", "quartiers"] },
+  { id: "isf", label: "Rétablissement de l'impôt sur la fortune", tenir: "Des départs, des tribunes, un procès en amateurisme", trahir: "Public, syndicats", theme: "budget", rarete: "commune", bord: -2, segments: ["public", "jeunes"] },
+  { id: "tva_zero", label: "TVA à 0 % sur les produits de première nécessité", tenir: "Douze milliards par an", trahir: "Tout le monde, au supermarché", theme: "budget", rarete: "commune", bord: -1, segments: ["retraites", "periurbain"] },
+  { id: "succession", label: "Suppression des droits de succession", tenir: "Un trou budgétaire et une querelle d'héritiers", trahir: "Pavillonnaires, indépendants", theme: "budget", rarete: "peu_commune", bord: 2, segments: ["pavillonnaires", "csp"] },
+  { id: "flat_tax", label: "Impôt à taux unique de 15 %", tenir: "Une refonte fiscale totale en un mandat", trahir: "CSP+, indépendants", theme: "budget", rarete: "peu_commune", bord: 3, segments: ["csp", "independants"] },
+  { id: "trente_deux", label: "Semaine de 32 heures", tenir: "Un affrontement de cinq ans avec le patronat", trahir: "Syndicats, jeunes", theme: "budget", rarete: "peu_commune", bord: -3, segments: ["public", "jeunes"] },
+  { id: "revenu_universel", label: "Revenu universel d'existence", tenir: "Le plus gros chantier fiscal depuis 1945", trahir: "Jeunes, quartiers", theme: "budget", rarete: "rare", bord: -2, segments: ["jeunes", "quartiers"] },
+  { id: "impot_robots", label: "Taxer les robots et les modèles d'IA", tenir: "Personne ne sait comment on assiette ça", trahir: "Syndicats, public", theme: "budget", rarete: "rare", bord: -1, segments: ["public", "periurbain"] },
+  { id: "dette_repudiee", label: "Répudier une partie de la dette publique", tenir: "Les marchés se ferment le lendemain matin", trahir: "Votre propre base, qui y croyait", theme: "budget", rarete: "legendaire", bord: -5, segments: ["periurbain", "jeunes"] },
+
+  // --- Retraites, santé, services ------------------------------------------
+  { id: "retraite_non", label: "Pas de recul de l'âge de la retraite", tenir: "Toute marge budgétaire future", trahir: "Ronds-points garantis", miroir: "retraite_oui", theme: "social", rarete: "commune", bord: -2, segments: ["public", "periurbain"] },
+  { id: "retraite_oui", label: "Réforme des retraites", tenir: "La rue, un an de mandat", trahir: "Marchés, Bruxelles, patronat", miroir: "retraite_non", theme: "social", rarete: "commune", bord: 2, segments: ["csp", "independants"] },
+  { id: "hopital", label: "Plan d'urgence hôpital", tenir: "Cher, effets lents", trahir: "Public, retraités", theme: "social", rarete: "commune", segments: ["public", "retraites"] },
+  { id: "sante_rurale", label: "Maisons de santé en zone rurale", tenir: "Budget, médecins introuvables", trahir: "Ruraux, retraités", theme: "social", rarete: "commune", segments: ["ruraux", "retraites"] },
+  { id: "ecole_douze", label: "Classes à douze élèves partout", tenir: "Quarante mille postes à créer", trahir: "Public, pavillonnaires", theme: "social", rarete: "peu_commune", bord: -1, segments: ["public", "pavillonnaires"] },
+  { id: "grand_age", label: "Grande loi sur le grand âge", tenir: "Un point de PIB, chaque année, pour toujours", trahir: "Retraités — c'est-à-dire l'élection", theme: "social", rarete: "peu_commune", bord: -1, segments: ["retraites", "public"] },
+  { id: "logement_requis", label: "Réquisition des logements vacants", tenir: "Le Conseil constitutionnel et tous les propriétaires", trahir: "Jeunes, quartiers", theme: "social", rarete: "rare", bord: -3, segments: ["jeunes", "quartiers"] },
+  { id: "medecins_affectes", label: "Affectation obligatoire des jeunes médecins", tenir: "Une grève des internes dès le premier mois", trahir: "Ruraux, retraités", theme: "social", rarete: "rare", bord: -1, segments: ["ruraux", "retraites"] },
+
+  // --- Sécurité, justice ----------------------------------------------------
+  { id: "police", label: "Police de proximité", tenir: "Budget, réforme interne", trahir: "Pavillonnaires, quartiers", theme: "securite", rarete: "commune", segments: ["pavillonnaires", "quartiers"] },
+  { id: "peines_planchers", label: "Peines planchers et fin des remises", tenir: "Des prisons pleines à 160 %", trahir: "Pavillonnaires, retraités", theme: "securite", rarete: "commune", bord: 3, segments: ["pavillonnaires", "retraites"] },
+  { id: "prisons", label: "Vingt mille places de prison", tenir: "Six milliards et douze ans de chantiers", trahir: "Pavillonnaires, indépendants", theme: "securite", rarete: "commune", bord: 2, segments: ["pavillonnaires", "independants"] },
+  { id: "cannabis", label: "Légalisation du cannabis", tenir: "Des retraités furieux", trahir: "Les jeunes", theme: "securite", rarete: "commune", bord: -2, segments: ["jeunes", "urbains"] },
+  { id: "couvre_feu", label: "Couvre-feu pour les mineurs de moins de 16 ans", tenir: "Inapplicable, et tout le monde le sait", trahir: "Pavillonnaires, retraités", theme: "securite", rarete: "peu_commune", bord: 3, segments: ["pavillonnaires", "retraites"] },
+  { id: "perpetuite", label: "Perpétuité réelle incompressible", tenir: "Strasbourg vous condamnera", trahir: "Retraités, ruraux", theme: "securite", rarete: "peu_commune", bord: 3, segments: ["retraites", "ruraux"] },
+  { id: "depenalisation", label: "Dépénalisation de tous les stupéfiants", tenir: "Une campagne de presse permanente", trahir: "Urbains, jeunes", theme: "securite", rarete: "rare", bord: -3, segments: ["urbains", "jeunes"] },
+  { id: "peine_mort", label: "Référendum sur le rétablissement de la peine de mort", tenir: "La rupture avec l'Europe entière", trahir: "Un électorat qu'on avait réveillé pour rien", theme: "securite", rarete: "legendaire", bord: 6, segments: ["pavillonnaires", "ruraux"] },
+
+  // --- Environnement, énergie ----------------------------------------------
+  { id: "nucleaire", label: "Six réacteurs nucléaires", tenir: "Dette, une partie des urbains", trahir: "Industriels, souverainistes", miroir: "sortie_nucleaire", theme: "environnement", rarete: "commune", bord: 1, segments: ["periurbain", "csp"] },
+  { id: "rail", label: "Rail du quotidien et sortie du charbon", tenir: "Budget, années de travaux", trahir: "Urbains, jeunes", theme: "environnement", rarete: "commune", bord: -1, segments: ["urbains", "jeunes"] },
+  { id: "sortie_nucleaire", label: "Sortie du nucléaire en quinze ans", tenir: "Une facture d'électricité qui devient politique", trahir: "Urbains, jeunes", miroir: "nucleaire", theme: "environnement", rarete: "peu_commune", bord: -2, segments: ["urbains", "jeunes"] },
+  { id: "zan", label: "Zéro artificialisation des sols", tenir: "Tous les maires de France contre vous", trahir: "Urbains, ruraux", theme: "environnement", rarete: "peu_commune", bord: -1, segments: ["urbains", "ruraux"] },
+  { id: "energie_publique", label: "Renationalisation de l'énergie", tenir: "Cent milliards et un contentieux européen", trahir: "Public, périurbain", theme: "environnement", rarete: "peu_commune", bord: -3, segments: ["public", "periurbain"] },
+  { id: "jets_prives", label: "Interdiction des jets privés et des vols intérieurs courts", tenir: "Symbolique, spectaculaire, et à peu près inutile", trahir: "Jeunes, urbains", theme: "environnement", rarete: "rare", bord: -3, segments: ["jeunes", "urbains"] },
+  { id: "cantine_vege", label: "Deux repas végétariens par semaine à la cantine", tenir: "Six mois de polémique nationale sur le steak haché", trahir: "Urbains, jeunes", theme: "environnement", rarete: "rare", bord: -2, segments: ["urbains", "jeunes"] },
+
+  // --- Institutions ---------------------------------------------------------
+  { id: "ric", label: "Référendum d'initiative citoyenne", tenir: "Un instrument que vos ennemis utiliseront", trahir: "Jeunes, périurbain", theme: "institutions", rarete: "commune", bord: -1, segments: ["jeunes", "periurbain"] },
+  { id: "proportionnelle", label: "Proportionnelle aux législatives", tenir: "Elle change les règles de VOTRE réélection", trahir: "Jeunes, urbains", theme: "institutions", rarete: "commune", segments: ["jeunes", "urbains"] },
+  { id: "vote_obligatoire", label: "Vote obligatoire", tenir: "Des amendes impossibles à recouvrer", trahir: "Retraités, public", theme: "institutions", rarete: "commune", segments: ["retraites", "public"] },
+  { id: "moins_elus", label: "Diviser par deux le nombre de parlementaires", tenir: "Faire voter leur propre réduction par les intéressés", trahir: "Périurbain, indépendants", theme: "institutions", rarete: "peu_commune", bord: 1, segments: ["periurbain", "independants"] },
+  { id: "vote_seize", label: "Droit de vote à seize ans", tenir: "Un débat interminable pour trois cent mille voix", trahir: "Jeunes, urbains", theme: "institutions", rarete: "peu_commune", bord: -1, segments: ["jeunes", "urbains"] },
+  { id: "senat", label: "Suppression du Sénat", tenir: "Une révision que le Sénat doit voter lui-même", trahir: "Jeunes, périurbain", theme: "institutions", rarete: "rare", bord: -2, segments: ["jeunes", "periurbain"] },
+  { id: "constituante", label: "Convoquer une Constituante — la VIe République", tenir: "Vous ouvrez une porte que personne ne sait refermer", trahir: "Jeunes, urbains, public", theme: "institutions", rarete: "rare", bord: -3, segments: ["jeunes", "urbains"] },
+  { id: "assemblee_tiree", label: "Une chambre de citoyens tirés au sort", tenir: "Deux légitimités concurrentes dans le même pays", trahir: "Jeunes, quartiers", theme: "institutions", rarete: "rare", bord: -2, segments: ["jeunes", "quartiers"] },
+  { id: "mandat_unique", label: "Mandat unique — « je ne me représenterai pas »", tenir: "Vous devenez un canard boiteux le premier jour", trahir: "Coûte double partout", theme: "institutions", rarete: "peu_commune", segments: ["urbains", "jeunes"] },
+
+  // --- Société, immigration -------------------------------------------------
+  { id: "regularisation", label: "Régularisation des travailleurs sans-papiers", tenir: "Une polémique permanente", trahir: "Urbains, quartiers", miroir: "quotas", theme: "societe", rarete: "commune", bord: -2, segments: ["urbains", "quartiers"] },
+  { id: "quotas", label: "Quotas migratoires annuels", tenir: "Urbains, quartiers", trahir: "Pavillonnaires, ruraux", miroir: "regularisation", theme: "societe", rarete: "commune", bord: 2, segments: ["pavillonnaires", "ruraux"] },
+  { id: "uniforme", label: "Uniforme à l'école", tenir: "Presque rien — et c'est bien le problème", trahir: "Pavillonnaires, retraités", theme: "societe", rarete: "commune", bord: 2, segments: ["pavillonnaires", "retraites"] },
+  { id: "fin_de_vie", label: "Aide active à mourir", tenir: "Une fracture morale dans votre propre camp", trahir: "Urbains, retraités", theme: "societe", rarete: "peu_commune", bord: -1, segments: ["urbains", "retraites"] },
+  { id: "service_national", label: "Service national obligatoire de neuf mois", tenir: "Douze milliards et des casernes qui n'existent plus", trahir: "Retraités, ruraux", theme: "societe", rarete: "peu_commune", bord: 2, segments: ["retraites", "ruraux"] },
+  { id: "droit_du_sol", label: "Fin du droit du sol", tenir: "Une révision constitutionnelle et une plaie ouverte", trahir: "Ruraux, pavillonnaires", theme: "societe", rarete: "rare", bord: 4, segments: ["ruraux", "pavillonnaires"] },
+  { id: "concordat", label: "Abrogation du Concordat d'Alsace-Moselle", tenir: "Trois départements en révolte pour un principe", trahir: "Public, urbains", theme: "societe", rarete: "legendaire", bord: -2, segments: ["public", "urbains"] },
+
+  // --- Monde ----------------------------------------------------------------
+  { id: "defense_trois", label: "Trois pour cent du PIB pour la défense", tenir: "Trente milliards pris ailleurs", trahir: "Ruraux, pavillonnaires", theme: "monde", rarete: "commune", bord: 2, segments: ["ruraux", "pavillonnaires"] },
+  { id: "aide_dev", label: "0,7 % du PIB pour l'aide au développement", tenir: "La cible favorite de toutes les oppositions", trahir: "Urbains", theme: "monde", rarete: "peu_commune", bord: -1, segments: ["urbains", "public"] },
+  { id: "armee_europeenne", label: "Créer une armée européenne", tenir: "Vingt-six partenaires et autant de vetos", trahir: "Urbains, CSP+", theme: "monde", rarete: "peu_commune", bord: 1, segments: ["urbains", "csp"] },
+  { id: "otan", label: "Sortie du commandement intégré de l'OTAN", tenir: "Washington ne vous le pardonnera pas", trahir: "Périurbain", theme: "monde", rarete: "rare", segments: ["periurbain", "public"] },
+  { id: "frexit", label: "Référendum sur la sortie de l'Union européenne", tenir: "Tout. Absolument tout.", trahir: "L'électorat qui n'attendait que ça", theme: "monde", rarete: "legendaire", bord: 5, segments: ["periurbain", "ruraux"] },
+
+  // --- Insolite : rare, et c'est ce qui fait la légende ----------------------
+  { id: "autoroutes", label: "Renationaliser les autoroutes", tenir: "Quarante milliards d'indemnités de résiliation", trahir: "Périurbain, ruraux", theme: "insolite", rarete: "peu_commune", bord: -2, segments: ["periurbain", "ruraux"] },
+  { id: "pub_interdite", label: "Interdiction totale de la publicité dans l'espace public", tenir: "La presse privée d'un tiers de ses recettes — et de sa bienveillance", trahir: "Urbains, jeunes", theme: "insolite", rarete: "rare", bord: -3, segments: ["urbains", "jeunes"] },
+  { id: "quatre_vingts", label: "80 km/h sur tout le réseau secondaire", tenir: "La mesure la plus détestée de l'histoire récente", trahir: "Urbains", theme: "insolite", rarete: "rare", segments: ["urbains", "public"] },
+  { id: "heure_paris", label: "Fin du changement d'heure et retour au méridien de Paris", tenir: "Un pays entier à remettre à l'heure, littéralement", trahir: "Personne. C'est bien le problème.", theme: "insolite", rarete: "rare", segments: ["retraites", "ruraux"] },
+  { id: "capitale", label: "Déplacer la capitale administrative à Bourges", tenir: "Quatre-vingt mille fonctionnaires et zéro volontaire", trahir: "Ruraux, périurbain", theme: "insolite", rarete: "legendaire", segments: ["ruraux", "periurbain"] },
+  { id: "banques", label: "Nationalisation du secteur bancaire", tenir: "Une fuite des capitaux en quarante-huit heures", trahir: "Public, périurbain", theme: "insolite", rarete: "legendaire", bord: -4, segments: ["public", "periurbain"] },
 ];
+
+/**
+ * Le tirage du programme : on garantit un éventail thématique, puis on
+ * complète à la rareté. Personne ne voit le vivier entier — il faut composer
+ * avec ce que la campagne vous met sur la table.
+ */
+export const PROGRAMME_PROPOSITIONS = 14;
+
+export function tirerProgramme(rng: {
+  pick<T>(a: readonly T[]): T;
+  weighted<T>(i: readonly { item: T; weight: number }[]): T;
+}): string[] {
+  const restants = [...PROMESSES];
+  const retenus: PromiseDef[] = [];
+  const prendre = (p: PromiseDef) => {
+    retenus.push(p);
+    restants.splice(restants.indexOf(p), 1);
+  };
+  const poids = (p: PromiseDef) => POIDS_RARETE[p.rarete ?? "commune"];
+
+  // Un point d'entrée par thème : aucune campagne ne peut ignorer la sécurité
+  // ou l'école sous prétexte que le tirage a été distrait.
+  const themes = [...new Set(PROMESSES.map((p) => p.theme))];
+  for (const theme of themes) {
+    const pool = restants.filter((p) => p.theme === theme);
+    if (pool.length > 0) prendre(rng.weighted(pool.map((p) => ({ item: p, weight: poids(p) }))));
+  }
+  while (retenus.length < PROGRAMME_PROPOSITIONS && restants.length > 0) {
+    prendre(rng.weighted(restants.map((p) => ({ item: p, weight: poids(p) }))));
+  }
+
+  // On rend la liste dans l'ordre du vivier : la présentation reste lisible.
+  const choisis = new Set(retenus.map((p) => p.id));
+  return PROMESSES.filter((p) => choisis.has(p.id)).map((p) => p.id);
+}
 
 // ---------------------------------------------------------------------------
 // Le comparatif final — moyennes publiques approximatives, Ve République

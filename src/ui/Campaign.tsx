@@ -1,10 +1,10 @@
 import { useState } from "react";
-import type { GameState } from "../engine/types";
+import type { GameState, PromiseTheme } from "../engine/types";
 import { useGame, DEBATE_OFFSET } from "../store";
 import { PROMESSES, CAST, SEGMENTS } from "../content/france/data";
 import { CAMPAIGN_ACTIONS, DEBATE_BEATS, sondageAffiche } from "../engine/campaign";
 import { makeRng } from "../engine/rng";
-import { DeltaChips, EventView, Tag } from "./components";
+import { DeltaChips, EventView, RareteBadge, Tag } from "./components";
 
 const ACTION_META: Record<string, { icone: string; tone: string }> = {
   meeting: { icone: "◎", tone: "var(--color-social)" },
@@ -16,53 +16,98 @@ const ACTION_META: Record<string, { icone: string; tone: string }> = {
   repos: { icone: "☾", tone: "var(--color-env)" },
 };
 
+const THEME_META: Record<PromiseTheme, { label: string; tone: string }> = {
+  budget: { label: "Budget", tone: "var(--color-eco)" },
+  social: { label: "Social", tone: "var(--color-social)" },
+  securite: { label: "Sécurité", tone: "var(--color-secu)" },
+  environnement: { label: "Écologie", tone: "var(--color-env)" },
+  institutions: { label: "Institutions", tone: "var(--color-pouvoir)" },
+  societe: { label: "Société", tone: "var(--color-monde)" },
+  monde: { label: "International", tone: "var(--color-monde)" },
+  insolite: { label: "Insolite", tone: "var(--color-perso)" },
+};
+
+const PROGRAMME_TAILLE = 6;
+
 function Programme({ s }: { s: GameState }) {
   const chooseProgram = useGame((g) => g.chooseProgram);
   const [sel, setSel] = useState<string[]>([]);
+
+  // Le tirage de la partie. Une sauvegarde d'avant la refonte n'en a pas :
+  // on lui remet le vivier complet plutôt que de la laisser sans programme.
+  const proposees = (s.programmePool.length > 0 ? s.programmePool : PROMESSES.map((p) => p.id))
+    .map((id) => PROMESSES.find((p) => p.id === id))
+    .filter((p): p is (typeof PROMESSES)[number] => !!p);
+
   const toggle = (id: string) => {
     const def = PROMESSES.find((p) => p.id === id)!;
     if (sel.includes(id)) return setSel(sel.filter((x) => x !== id));
-    if (sel.length >= 6) return;
+    if (sel.length >= PROGRAMME_TAILLE) return;
     if (def.miroir && sel.includes(def.miroir)) return;
     setSel([...sel, id]);
   };
+
+  // Ce que le programme dit de vous avant même le premier meeting.
+  const inclinaison = sel.reduce((n, id) => n + (PROMESSES.find((p) => p.id === id)?.bord ?? 0), 0);
+  const glissement = Math.max(-4, Math.min(4, Math.round(inclinaison / 2)));
 
   return (
     <div className="max-w-3xl mx-auto pt-10 px-5 pb-16 fade-in">
       <Tag tone="var(--color-social)">Acte III — La campagne</Tag>
       <h1 className="press-une text-3xl mt-3 mb-1">Votre programme</h1>
-      <p className="text-[13px] mb-5 max-w-lg" style={{ color: "var(--color-faint)" }}>
-        Six mesures. Elles deviendront des promesses suivies tout le mandat — tenir coûte cher, trahir aussi.
+      <p className="text-[13px] mb-4 max-w-xl" style={{ color: "var(--color-faint)" }}>
+        Six mesures parmi les {proposees.length} que vos équipes ont mises sur la table. Elles deviendront des promesses
+        suivies tout le mandat — tenir coûte cher, trahir aussi. Une autre campagne vous en aurait proposé d'autres.
       </p>
 
+      {glissement !== 0 && (
+        <div className="mb-4">
+          <Tag tone={glissement < 0 ? "var(--color-pouvoir)" : "var(--color-secu)"}>
+            {glissement < 0 ? "◀ Ce programme vous tire à gauche" : "Ce programme vous tire à droite ▶"} ({glissement > 0 ? "+" : ""}
+            {glissement})
+          </Tag>
+        </div>
+      )}
+
       <div className="grid md:grid-cols-2 gap-2 mb-5">
-        {PROMESSES.map((p) => {
+        {proposees.map((p) => {
           const active = sel.includes(p.id);
-          const blocked = (p.miroir && sel.includes(p.miroir)) || (!active && sel.length >= 6);
+          const rarete = p.rarete ?? "commune";
+          const theme = THEME_META[p.theme];
+          const bloque = (p.miroir && sel.includes(p.miroir)) || (!active && sel.length >= PROGRAMME_TAILLE);
           return (
             <button
               key={p.id}
               className="btn-choice"
               data-selected={active}
-              disabled={!!blocked && !active}
-              style={{ "--tone": active ? "var(--color-social)" : "var(--color-line)" } as React.CSSProperties}
+              disabled={!!bloque && !active}
+              style={{ "--tone": active ? "var(--color-social)" : theme.tone } as React.CSSProperties}
               onClick={() => toggle(p.id)}
             >
               <div className="flex items-start justify-between gap-2">
-                <span className="font-semibold text-[13px]">{p.label}</span>
+                <span className="font-semibold text-[13px] leading-snug">{p.label}</span>
                 {active && <span style={{ color: "var(--color-social)" }}>✓</span>}
               </div>
               <div className="flex flex-wrap gap-1 mt-1.5">
-                <Tag tone="var(--color-bad)">coûte : {p.tenir}</Tag>
-                {p.miroir && <Tag tone="var(--color-warn)">incompatible</Tag>}
+                <Tag tone={theme.tone}>{theme.label}</Tag>
+                {rarete !== "commune" && <RareteBadge rarete={rarete} />}
+                {p.bord !== undefined && p.bord !== 0 && (
+                  <Tag tone={p.bord < 0 ? "var(--color-pouvoir)" : "var(--color-secu)"}>
+                    {p.bord < 0 ? "◀".repeat(Math.min(3, Math.abs(p.bord))) : "▶".repeat(Math.min(3, p.bord))}
+                  </Tag>
+                )}
+                {p.miroir && sel.includes(p.miroir) && <Tag tone="var(--color-bad)">incompatible</Tag>}
+              </div>
+              <div className="text-[11.5px] mt-1.5 leading-snug" style={{ color: "var(--color-faint)" }}>
+                Coûte : {p.tenir}
               </div>
             </button>
           );
         })}
       </div>
 
-      <button className="btn-primary" disabled={sel.length !== 6} onClick={() => chooseProgram(sel)}>
-        Partir en campagne · {sel.length}/6
+      <button className="btn-primary" disabled={sel.length !== PROGRAMME_TAILLE} onClick={() => chooseProgram(sel)}>
+        Partir en campagne · {sel.length}/{PROGRAMME_TAILLE}
       </button>
     </div>
   );
@@ -82,7 +127,7 @@ function Debat({ s }: { s: GameState }) {
         <p className="text-[15px] leading-relaxed pl-4 border-l-2" style={{ borderColor: "var(--accent)" }}>
           {s.resolution}
         </p>
-        <DeltaChips deltas={s.lastDeltas} signals={s.lastSignals} />
+        <DeltaChips deltas={s.lastDeltas} signals={s.lastSignals} check={s.lastCheck} />
         <button className="btn-primary mt-5" onClick={continueAfter}>
           Reprendre la campagne
         </button>
@@ -234,7 +279,7 @@ export default function Campaign({ s }: { s: GameState }) {
           <p className="text-[15px] leading-relaxed pl-4 border-l-2" style={{ borderColor: "var(--accent)" }}>
             {s.resolution}
           </p>
-          <DeltaChips deltas={s.lastDeltas} signals={s.lastSignals} />
+          <DeltaChips deltas={s.lastDeltas} signals={s.lastSignals} check={s.lastCheck} />
           <button className="btn-primary mt-5" onClick={continueAfter}>
             Semaine suivante
           </button>

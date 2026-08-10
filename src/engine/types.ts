@@ -97,6 +97,17 @@ export interface SegmentState {
 
 export type PromiseStatus = "en_cours" | "tenue" | "trahie" | "partielle";
 
+/** Le rayon du programme — sert à garantir un éventail varié au tirage. */
+export type PromiseTheme =
+  | "budget"
+  | "social"
+  | "securite"
+  | "environnement"
+  | "institutions"
+  | "societe"
+  | "monde"
+  | "insolite";
+
 export interface PromiseDef {
   id: string;
   label: string;
@@ -104,6 +115,11 @@ export interface PromiseDef {
   trahir: string; // qui ça fâche de la trahir
   miroir?: string; // id de la promesse incompatible
   segments: string[]; // segments séduits
+  theme: PromiseTheme;
+  /** Plus c'est rare, moins ça sort — et plus c'est mémorable. */
+  rarete?: Rarete;
+  /** Déplacement de la ligne politique qu'implique l'inscrire au programme. */
+  bord?: number;
 }
 
 export interface PromiseState {
@@ -159,8 +175,54 @@ export interface Choice {
   label: string;
   detail?: string;
   cond?: (s: GameState) => boolean;
+  /**
+   * Déclare un choix comme exposé : plus le risque est élevé, plus le moment
+   * de vérité est probable et sa fenêtre étroite. Sans valeur, le moteur le
+   * déduit de la nature de l'événement.
+   */
+  risque?: 1 | 2 | 3;
+  /** L'aptitude mise à l'épreuve, si ce n'est pas celle par défaut. */
+  aptitude?: keyof PlayerStats;
   /** Retourne le texte de résolution affiché au joueur. */
   effects: (ctx: Ctx) => string;
+}
+
+// ---------------------------------------------------------------------------
+// Les moments de vérité : un mini-jeu de tempo greffé sur une décision.
+// ---------------------------------------------------------------------------
+
+export type CheckRang = "critique" | "reussite" | "echec" | "desastre";
+
+export type CheckCible =
+  | { kind: "choix"; choiceId: string }
+  | { kind: "action"; actionId: string; param?: string; cout: number }
+  | { kind: "campagne"; actionId: string; segmentId?: string }
+  | { kind: "debat"; beats: string[] };
+
+export interface CheckPlan {
+  /** Ce qu'on reprendra une fois le mini-jeu terminé. */
+  cible: CheckCible;
+  titre: string;
+  consigne: string;
+  aptitude: keyof PlayerStats;
+  aptitudeLabel: string;
+  difficulte: 1 | 2 | 3;
+  difficulteLabel: string;
+  /** Largeur de la fenêtre de réussite, en % de la barre. */
+  zone: number;
+  /** Largeur de la fenêtre critique, centrée dans la précédente. */
+  zoneCrit: number;
+  /** Position du bord gauche de la fenêtre, en % de la barre. */
+  depart: number;
+  /** Durée d'un aller simple du curseur, en millisecondes. */
+  vitesse: number;
+  /** Nombre d'allers avant que le silence ne devienne une réponse. */
+  passes: number;
+}
+
+export interface CheckResult {
+  rang: CheckRang;
+  titre: string;
 }
 
 export type EventKind = "standard" | "intrigue" | "crise" | "monde" | "perso" | "ascension" | "campagne";
@@ -320,6 +382,14 @@ export interface GameState {
   characters: Record<string, CharacterState>;
   segments: Record<string, SegmentState>;
   promises: PromiseState[];
+  /** Les mesures que la campagne vous propose — jamais le vivier entier. */
+  programmePool: string[];
+  /** Mini-jeu en attente : la décision est prise mais reste à être tenue. */
+  pendingCheck: CheckPlan | null;
+  /** Résultat du dernier moment de vérité, affiché avec la résolution. */
+  lastCheck: CheckResult | null;
+  /** Décisions restantes avant qu'un nouveau moment de vérité soit possible. */
+  checkCooldown: number;
   flags: Record<string, number | string | boolean>;
   delayed: DelayedTrigger[];
   fired: string[]; // événements « once » déjà joués

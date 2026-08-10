@@ -3,22 +3,31 @@ import type { Rng } from "../../engine/rng";
 import { POIDS_RARETE } from "./data";
 
 // ---------------------------------------------------------------------------
-// Acte II — L'ascension. Sept étapes, tirées chacune dans son propre vivier :
-// deux carrières ne commencent jamais de la même façon. Chaque choix laisse
-// des traces qu'on retrouvera au pouvoir — alliés, ennemis, dettes, casseroles,
-// et surtout une ligne politique qui se dessine sans qu'on l'ait décidé.
+// Acte II — L'ascension. Une carrière tient en quatre scènes : d'où l'on vient,
+// ce qui nous définit, un détour tiré au sort, et la veille du grand saut.
+// Chaque choix laisse des traces qu'on retrouvera au pouvoir — alliés, ennemis,
+// dettes, casseroles, et une ligne politique qu'on n'a pas vraiment décidée.
+//
+// Le reste des viviers n'est pas perdu : c'est justement parce qu'on n'en voit
+// qu'une partie que deux ascensions ne se ressemblent jamais.
 // ---------------------------------------------------------------------------
 
 export interface AscensionEtape {
   id: string;
   titre: string;
+  /** Une étape socle est toujours jouée ; les autres passent par le tirage. */
+  socle?: boolean;
   pool: string[];
 }
+
+/** Nombre d'étapes tirées parmi les étapes facultatives. */
+export const ASCENSION_ETAPES_TIREES = 1;
 
 export const ASCENSION_ETAPES: AscensionEtape[] = [
   {
     id: "debuts",
     titre: "Les débuts",
+    socle: true,
     pool: ["asc_deb_tract", "asc_deb_piquet", "asc_deb_cabinet", "asc_deb_asso", "asc_deb_jeunesses", "asc_deb_entreprise", "asc_deb_plateau", "asc_deb_place"],
   },
   {
@@ -34,6 +43,7 @@ export const ASCENSION_ETAPES: AscensionEtape[] = [
   {
     id: "ligne",
     titre: "Ce qui vous définit",
+    socle: true,
     pool: ["asc_lig_licenciements", "asc_lig_faitdivers", "asc_lig_quotas", "asc_lig_autoroute", "asc_lig_europe", "asc_lig_laicite", "asc_lig_patrimoine", "asc_lig_retraites"],
   },
   {
@@ -49,6 +59,7 @@ export const ASCENSION_ETAPES: AscensionEtape[] = [
   {
     id: "investiture",
     titre: "L'investiture",
+    socle: true,
     pool: ["asc_investiture", "asc_inv_discours", "asc_inv_alliance", "asc_inv_conjoint"],
   },
 ];
@@ -58,16 +69,36 @@ export const ASCENSION_ETAPES: AscensionEtape[] = [
 // dans les viviers : une partie commencée avant la refonte garde sa file
 // d'attente et retrouve ses événements.
 
-/** Tire un scénario par étape, pondéré par la rareté et filtré par la biographie. */
+/**
+ * Construit l'Acte II : les trois étapes socles, plus un détour tiré au sort
+ * parmi les quatre autres. Quatre scènes, pas sept — on entre en politique,
+ * on ne rédige pas ses mémoires.
+ */
 export function buildAscension(rng: Rng, s: GameState): string[] {
-  const out: string[] = [];
-  for (const etape of ASCENSION_ETAPES) {
+  const tirer = (etape: AscensionEtape): string | null => {
     const candidats = etape.pool
       .map((id) => EVENTS_ASCENSION.find((e) => e.id === id))
       .filter((e): e is GameEvent => !!e && (!e.cond || e.cond(s)));
-    if (candidats.length === 0) continue;
-    const choisi = rng.weighted(candidats.map((e) => ({ item: e, weight: POIDS_RARETE[e.rarete ?? "commune"] })));
-    out.push(choisi.id);
+    if (candidats.length === 0) return null;
+    return rng.weighted(candidats.map((e) => ({ item: e, weight: POIDS_RARETE[e.rarete ?? "commune"] }))).id;
+  };
+
+  // Les étapes facultatives : on en retient une poignée, choisies au hasard,
+  // mais l'ordre chronologique de la carrière est conservé.
+  const facultatives = ASCENSION_ETAPES.filter((e) => !e.socle);
+  const retenues = new Set<string>();
+  const restantes = [...facultatives];
+  while (retenues.size < ASCENSION_ETAPES_TIREES && restantes.length > 0) {
+    const e = rng.pick(restantes);
+    restantes.splice(restantes.indexOf(e), 1);
+    retenues.add(e.id);
+  }
+
+  const out: string[] = [];
+  for (const etape of ASCENSION_ETAPES) {
+    if (!etape.socle && !retenues.has(etape.id)) continue;
+    const id = tirer(etape);
+    if (id) out.push(id);
   }
   return out;
 }

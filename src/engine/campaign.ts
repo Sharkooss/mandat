@@ -1,4 +1,4 @@
-﻿import type { CampaignState, GameState } from "./types";
+﻿import type { CampaignState, CheckRang, GameState } from "./types";
 import type { Rng } from "./rng";
 import { clamp } from "./ctx";
 
@@ -65,7 +65,13 @@ export const CAMPAIGN_ACTIONS: CampaignAction[] = [
   { id: "repos", nom: "Repos", detail: "Une journée à la campagne. La presse dira que vous fuyez.", fatigue: -18 },
 ];
 
-export function applyCampaignAction(s: GameState, rng: Rng, actionId: string, segmentId?: string): string {
+export function applyCampaignAction(
+  s: GameState,
+  rng: Rng,
+  actionId: string,
+  segmentId?: string,
+  rang?: CheckRang
+): string {
   const c = s.campaign!;
   c.lastAction = actionId;
   const fatigueMalus = s.hidden.fatigue > 70 ? 0.4 : s.hidden.fatigue > 50 ? 0.75 : 1;
@@ -77,10 +83,13 @@ export function applyCampaignAction(s: GameState, rng: Rng, actionId: string, se
   switch (actionId) {
     case "meeting": {
       const seg = s.segments[segmentId ?? "pavillonnaires"];
-      const gain = rate(7 + Math.floor(s.player.charisme / 18));
+      // Quand le joueur a tenu la salle lui-même, la tribune paie double.
+      const bonus = rang === "critique" ? 1.6 : rang === "desastre" ? 0.3 : rang === "echec" ? 0.7 : 1;
+      const gain = Math.round(rate(7 + Math.floor(s.player.charisme / 18)) * bonus);
       seg.soutien = clamp(seg.soutien + gain);
-      seg.participation = clamp(seg.participation + rate(8));
-      if (fatigueMalus < 0.7 && rng.chance(0.4)) {
+      seg.participation = clamp(seg.participation + Math.round(rate(8) * bonus));
+      const rate_ = rang ? rang === "echec" || rang === "desastre" : fatigueMalus < 0.7 && rng.chance(0.4);
+      if (rate_) {
         c.dynamique = clamp(c.dynamique - 2, -10, 10);
         res = `Salle correcte, discours récité. Vous avez confondu deux villes à la tribune — la séquence tourne en boucle.`;
       } else {
@@ -90,7 +99,10 @@ export function applyCampaignAction(s: GameState, rng: Rng, actionId: string, se
       break;
     }
     case "plateau": {
-      const perf = s.player.rhetorique * fatigueMalus + rng.int(-15, 15);
+      // Si le joueur a tenu le direct lui-même, c'est sa prestation qui compte,
+      // pas un jet caché : le plateau est le moment où l'aléatoire se voit.
+      const perf =
+        rang === "critique" ? 80 : rang === "reussite" ? 58 : rang === "echec" ? 40 : rang === "desastre" ? 15 : s.player.rhetorique * fatigueMalus + rng.int(-15, 15);
       if (perf > 55) {
         for (const id of ["pavillonnaires", "urbains", "retraites"]) s.segments[id].soutien = clamp(s.segments[id].soutien + 4);
         c.dynamique = clamp(c.dynamique + 3, -10, 10);
@@ -114,14 +126,15 @@ export function applyCampaignAction(s: GameState, rng: Rng, actionId: string, se
     }
     case "attaque": {
       // Une attaque peut se retourner : c'est l'action la plus volatile.
-      if (rng.chance(0.25)) {
+      const seRetourne = rang ? rang === "desastre" : rng.chance(0.25);
+      if (seRetourne) {
         c.dynamique = clamp(c.dynamique - 4, -10, 10);
         s.segments["pavillonnaires"].soutien = clamp(s.segments["pavillonnaires"].soutien - 5);
         s.power.presse = clamp(s.power.presse - 5);
         res = "L'attaque se retourne : l'accusation était mal étayée, l'adversaire répond avec des documents. Vous passez la journée à vous expliquer au lieu de faire campagne.";
         break;
       }
-      c.opposantScore = clamp(c.opposantScore - rate(7));
+      c.opposantScore = clamp(c.opposantScore - rate(rang === "critique" ? 11 : 7));
       for (const id of ["periurbain", "jeunes"]) s.segments[id].participation = clamp(s.segments[id].participation + 5);
       s.segments["pavillonnaires"].soutien = clamp(s.segments["pavillonnaires"].soutien - 3);
       s.segments["retraites"].soutien = clamp(s.segments["retraites"].soutien - 2);
@@ -175,11 +188,13 @@ export const DEBATE_BEATS: DebateBeat[] = [
   { id: "dossier_secret", nom: "Sortir le dossier", detail: "Ce que vos équipes ont trouvé. Dévastateur ou dégueulasse, selon le camp." },
 ];
 
-export function runDebate(s: GameState, rng: Rng, beats: string[]): string {
+export function runDebate(s: GameState, rng: Rng, beats: string[], rang?: CheckRang): string {
   const c = s.campaign!;
   c.debatFait = true;
   const fatigueMalus = s.hidden.fatigue > 70 ? -15 : s.hidden.fatigue > 50 ? -6 : 0;
-  let score = s.player.rhetorique * 0.4 + fatigueMalus + rng.int(-10, 10);
+  // La tenue du direct pèse autant que la composition de l'intervention.
+  const tenue = rang === "critique" ? 20 : rang === "reussite" ? 6 : rang === "echec" ? -10 : rang === "desastre" ? -24 : 0;
+  let score = s.player.rhetorique * 0.4 + fatigueMalus + tenue + rng.int(-10, 10);
   const lignes: string[] = [];
 
   for (const b of beats) {
