@@ -1,7 +1,8 @@
 ﻿import type { CampaignState, CheckRang, GameState } from "./types";
 import type { Rng } from "./rng";
-import { clamp } from "./ctx";
+import { clamp, makeCtx } from "./ctx";
 import { nomCompletDe } from "./noms";
+import { PROMESSES } from "../content/france/data";
 
 // ---------------------------------------------------------------------------
 // Les scores : le vrai score n'est jamais montré tel quel.
@@ -25,7 +26,10 @@ export function intentions(s: GameState): { joueur: number; opposant: number; ti
   const c = s.campaign!;
   const joueurRaw = scoreBrut(s);
   const oppRaw = c.opposantScore * 0.48;
-  const tiersRaw = 18;
+  // Le réservoir des voix qui ne sont à personne. Il ne bouge que par un
+  // ralliement — c'est le seul geste de campagne qui change l'arithmétique
+  // plutôt que de déplacer des points d'un segment à l'autre.
+  const tiersRaw = c.tiers ?? 18;
   const total = joueurRaw + oppRaw + tiersRaw;
   return {
     joueur: (joueurRaw / total) * 100,
@@ -38,9 +42,11 @@ export function intentions(s: GameState): { joueur: number; opposant: number; ti
 export function sondageAffiche(s: GameState, rng: Rng): { joueur: number; opposant: number } {
   const i = intentions(s);
   const c = s.campaign!;
+  // Un focus group ne change pas le score : il change ce que vous en savez.
+  const bruit = c.sondageFiable ? 0 : 4;
   return {
-    joueur: Math.round(clamp(i.joueur + (rng.next() - 0.5) * 4 + c.dynamique * 0.4, 5, 90)),
-    opposant: Math.round(clamp(i.opposant + (rng.next() - 0.5) * 4 - c.dynamique * 0.2, 5, 90)),
+    joueur: Math.round(clamp(i.joueur + (rng.next() - 0.5) * bruit + c.dynamique * 0.4, 5, 90)),
+    opposant: Math.round(clamp(i.opposant + (rng.next() - 0.5) * bruit - c.dynamique * 0.2, 5, 90)),
   };
 }
 
@@ -216,6 +222,19 @@ export const RIPOSTES: Riposte[] = [
   },
 ];
 
+/**
+ * « faire de X son sujet » : les thèmes sont écrits avec leur article, et
+ * « de le chômage » ne se dit pas. On contracte plutôt que de découper.
+ */
+export function duTheme(theme: string): string {
+  const t = theme.trim();
+  if (/^les\s/i.test(t)) return "des " + t.slice(4).toLowerCase();
+  if (/^le\s/i.test(t)) return "du " + t.slice(3).toLowerCase();
+  if (/^la\s/i.test(t)) return "de la " + t.slice(3).toLowerCase();
+  if (/^l'/i.test(t)) return "de l'" + t.slice(2).toLowerCase();
+  return "de " + t.charAt(0).toLowerCase() + t.slice(1);
+}
+
 /** Les attaques recevables selon qu'on défend un bilan ou qu'on en promet un. */
 export function arsenalContre(s: GameState, sortant: boolean): Riposte[] {
   return RIPOSTES.filter((r) => !r.quand || r.quand === (sortant ? "sortant" : "candidat"));
@@ -255,7 +274,7 @@ export function riposter(s: GameState, rng: Rng): string | null {
   c.ripostesJouees = [...jouees, choisie.id];
 
   const nom = nomCompletDe(s, c.opposantId);
-  const texte = `${nom} a fait de ${choisie.theme.toLowerCase()} son sujet de la semaine. ${choisie.attaque(s)}${
+  const texte = `${nom} a fait ${duTheme(choisie.theme)} son sujet de la semaine. ${choisie.attaque(s)}${
     couvert ? " Vous occupiez l'antenne : le coup passe en deuxième titre." : ""
   }`;
   c.derniereRiposte = texte;
@@ -272,17 +291,183 @@ export interface CampaignAction {
   detail: string;
   fatigue: number;
   needSegment?: boolean;
+  /** Toutes les semaines ne rendent pas tout possible. */
+  cond?: (s: GameState) => boolean;
+  /** Poids dans le tirage hebdomadaire — la routine sort plus que l'exception. */
+  poids?: number | ((s: GameState) => number);
+  /** Nombre de semaines avant de pouvoir la reprendre. */
+  cooldown?: number;
+}
+
+/** L'argent de campagne : levé aux dîners, dépensé en affichage et en spots. */
+export function budgetCampagne(s: GameState): number {
+  return (s.flags["budget_campagne"] as number) ?? 0;
 }
 
 export const CAMPAIGN_ACTIONS: CampaignAction[] = [
-  { id: "meeting", nom: "Meeting régional", detail: "Mobiliser un segment : + soutien, + participation.", fatigue: 8, needSegment: true },
-  { id: "plateau", nom: "Plateau télévisé", detail: "Toucher large. Votre rhétorique décide — et votre fatigue se voit.", fatigue: 6 },
-  { id: "fonds", nom: "Levée de fonds", detail: "Dîner en ville. Les CSP+ signent des chèques, la presse compte les petits fours.", fatigue: 4 },
-  { id: "attaque", nom: "Attaque de l'adversaire", detail: "Votre base adore. Les modérés, moins.", fatigue: 5 },
-  { id: "annonce", nom: "Grande annonce", detail: "Mettre une promesse en lumière. Les électeurs s'en souviendront — c'est le problème.", fatigue: 6 },
-  { id: "dossier", nom: "Faire travailler les équipes", detail: "Chercher ce que l'adversaire cache. Utile pour le débat.", fatigue: 2 },
-  { id: "repos", nom: "Repos", detail: "Une journée à la campagne. La presse dira que vous fuyez.", fatigue: -18 },
+  {
+    id: "meeting",
+    nom: "Meeting régional",
+    detail: "Deux mille personnes, un segment visé. Le socle se construit là.",
+    fatigue: 8,
+    needSegment: true,
+    poids: 3,
+  },
+  {
+    id: "meeting_geant",
+    nom: "Le meeting de Bercy",
+    detail: "Vingt mille personnes, une seule soirée, tout le pays qui regarde. Épuisant.",
+    fatigue: 18,
+    cooldown: 99,
+    cond: (s) => s.campaign!.week >= s.campaign!.totalWeeks - 3,
+    poids: 2.2,
+  },
+  {
+    id: "plateau",
+    nom: "Plateau télévisé",
+    detail: "Toucher large. Votre rhétorique décide — et votre fatigue se voit.",
+    fatigue: 6,
+    poids: 2.6,
+  },
+  {
+    id: "porte_a_porte",
+    nom: "Porte-à-porte militant",
+    detail: "Vos militants, pas vous. Ça ne fait pas d'images : ça fait des votants.",
+    fatigue: 4,
+    cond: (s) => s.power.parti >= 32,
+    poids: (s) => (s.power.parti >= 55 ? 2.4 : 1.4),
+  },
+  {
+    id: "spot_tv",
+    nom: "Affichage et spots",
+    detail: "Acheter l'espace. Coûte une levée de fonds, se voit partout pendant huit jours.",
+    fatigue: 2,
+    cond: (s) => budgetCampagne(s) >= 1,
+    poids: 2.2,
+  },
+  {
+    id: "fonds",
+    nom: "Levée de fonds",
+    detail: "Dîner en ville. Les CSP+ signent des chèques, la presse compte les petits fours.",
+    fatigue: 4,
+    poids: 2,
+  },
+  {
+    id: "attaque",
+    nom: "Attaque de l'adversaire",
+    detail: "Votre base adore. Les modérés, moins. Et ça peut se retourner.",
+    fatigue: 5,
+    poids: 2.4,
+  },
+  {
+    id: "contre_feu",
+    nom: "Éteindre l'incendie",
+    detail: "Répondre au sujet qu'il vous a imposé cette semaine, et rien d'autre.",
+    fatigue: 6,
+    cond: (s) => !!s.campaign!.derniereRiposte,
+    poids: 3.2,
+  },
+  {
+    id: "annonce",
+    nom: "Grande annonce",
+    detail: "Mettre une mesure du programme en pleine lumière. Les électeurs vérifieront.",
+    fatigue: 6,
+    cond: (s) => s.promises.some((p) => p.status === "en_cours"),
+    poids: 2,
+  },
+  {
+    id: "promesse_choc",
+    nom: "La promesse hors programme",
+    detail: "Une annonce que personne n'a chiffrée. Énorme tout de suite. On vous la ressortira.",
+    fatigue: 7,
+    cooldown: 99,
+    poids: 1.6,
+  },
+  {
+    id: "dossier",
+    nom: "Faire travailler les équipes",
+    detail: "Chercher ce que l'adversaire cache. Utile pour le débat.",
+    fatigue: 2,
+    cond: (s) => s.campaign!.dossierAdversaire < 3,
+    poids: 1.8,
+  },
+  {
+    id: "ralliement",
+    nom: "Négocier un ralliement",
+    detail: "Aller chercher une figure du camp d'en face. Ça se paie, et ça change l'arithmétique.",
+    fatigue: 6,
+    cooldown: 3,
+    cond: (s) => s.player.reseau >= 40,
+    poids: 1.7,
+  },
+  {
+    id: "terrain",
+    nom: "Marché, usine, salon agricole",
+    detail: "Le terrain, sans filtre : des mains serrées et deux engueulades filmées.",
+    fatigue: 7,
+    poids: 2.4,
+  },
+  {
+    id: "numerique",
+    nom: "Campagne en ligne",
+    detail: "Là où sont les moins de trente ans. Personne ne contrôle ce qui en sort.",
+    fatigue: 3,
+    poids: 2,
+  },
+  {
+    id: "focus_group",
+    nom: "Réunion d'électeurs indécis",
+    detail: "Six personnes derrière une glace sans tain. Ce qu'elles disent vaut tous les sondages.",
+    fatigue: 3,
+    cooldown: 99,
+    poids: 1.8,
+  },
+  {
+    id: "repos",
+    nom: "Repos",
+    detail: "Une journée à la campagne. La presse dira que vous fuyez.",
+    fatigue: -22,
+    poids: (s) => (s.hidden.fatigue > 60 ? 2.5 : 0.8),
+  },
 ];
+
+const ACTIONS_PAR_SEMAINE = 4;
+
+/**
+ * Le menu de la semaine. Quatre possibilités, jamais les mêmes : une campagne
+ * où l'on dispose chaque semaine de tout l'éventail n'est pas une campagne,
+ * c'est une liste de courses. Le tirage force à faire avec ce que la semaine
+ * offre — et rend le meeting de Bercy ou le ralliement mémorables.
+ */
+export function tirerActionsSemaine(s: GameState, rng: Rng): string[] {
+  const c = s.campaign!;
+  const faites = c.actionsFaites ?? {};
+  const dispo = CAMPAIGN_ACTIONS.filter((a) => {
+    if (a.cond && !a.cond(s)) return false;
+    const quand = faites[a.id];
+    if (quand !== undefined && a.cooldown && c.week - quand < a.cooldown) return false;
+    return true;
+  });
+
+  const tires: string[] = [];
+  // Un candidat épuisé doit toujours pouvoir souffler : sans ce garde-fou, le
+  // tirage pourrait le condamner à finir la campagne à genoux.
+  if (s.hidden.fatigue > 62 && dispo.some((a) => a.id === "repos")) tires.push("repos");
+
+  const restants = dispo.filter((a) => !tires.includes(a.id));
+  while (tires.length < ACTIONS_PAR_SEMAINE && restants.length > 0) {
+    const choisi = rng.weighted(
+      restants.map((a) => {
+        const base = typeof a.poids === "function" ? a.poids(s) : (a.poids ?? 1);
+        // Ce qu'on n'a pas encore fait de la campagne sort plus volontiers.
+        return { item: a, weight: base * (faites[a.id] === undefined ? 1.8 : 1) };
+      })
+    );
+    restants.splice(restants.indexOf(choisi), 1);
+    tires.push(choisi.id);
+  }
+  return tires;
+}
 
 export function applyCampaignAction(
   s: GameState,
@@ -299,21 +484,44 @@ export function applyCampaignAction(
   s.hidden.fatigue = clamp(s.hidden.fatigue + act.fatigue);
   let res = "";
 
+  const seg = (id: string, d: { soutien?: number; participation?: number }) => {
+    const sg = s.segments[id];
+    if (!sg) return;
+    if (d.soutien) sg.soutien = clamp(sg.soutien + d.soutien);
+    if (d.participation) sg.participation = clamp(sg.participation + d.participation);
+  };
+  const dyn = (n: number) => { c.dynamique = clamp(c.dynamique + n, -10, 10); };
+
   switch (actionId) {
     case "meeting": {
-      const seg = s.segments[segmentId ?? "pavillonnaires"];
+      const cible = segmentId ?? "pavillonnaires";
       // Quand le joueur a tenu la salle lui-même, la tribune paie double.
       const bonus = rang === "critique" ? 1.6 : rang === "desastre" ? 0.3 : rang === "echec" ? 0.7 : 1;
-      const gain = Math.round(rate(7 + Math.floor(s.player.charisme / 18)) * bonus);
-      seg.soutien = clamp(seg.soutien + gain);
-      seg.participation = clamp(seg.participation + Math.round(rate(8) * bonus));
+      const gain = Math.round(rate(12 + Math.floor(s.player.charisme / 12)) * bonus);
+      seg(cible, { soutien: gain, participation: Math.round(rate(11) * bonus) });
       const rate_ = rang ? rang === "echec" || rang === "desastre" : fatigueMalus < 0.7 && rng.chance(0.4);
       if (rate_) {
-        c.dynamique = clamp(c.dynamique - 2, -10, 10);
-        res = `Salle correcte, discours récité. Vous avez confondu deux villes à la tribune — la séquence tourne en boucle.`;
+        dyn(-2);
+        res = "Salle correcte, discours récité. Vous avez confondu deux villes à la tribune — la séquence tourne en boucle.";
       } else {
-        c.dynamique = clamp(c.dynamique + 1, -10, 10);
-        res = `Bonne salle. Le segment visé bouge. Les caméras ont montré les drapeaux, pas les chaises vides.`;
+        dyn(2);
+        res = "Bonne salle, et elle est venue pour vous. Le segment visé bouge franchement. Les caméras ont montré les drapeaux, pas les chaises vides.";
+      }
+      break;
+    }
+    case "meeting_geant": {
+      const perf = rang === "critique" ? 90 : rang === "desastre" ? 20 : rang === "echec" ? 40 : s.player.charisme * fatigueMalus + rng.int(-12, 18);
+      if (perf > 50) {
+        for (const id of Object.keys(s.segments)) seg(id, { participation: rate(7) });
+        for (const id of ["periurbain", "pavillonnaires", "jeunes", "retraites"]) seg(id, { soutien: rate(8) });
+        dyn(6);
+        s.power.presse = clamp(s.power.presse + 5);
+        res = "Vingt mille personnes debout, une heure quarante sans notes, et la séquence des drapeaux qui passera en boucle jusqu'au vote. Ce n'est pas un meeting, c'est une démonstration : elle dit au pays que vous pouvez encore remplir une salle, et à votre camp qu'il n'a pas à chercher ailleurs.";
+      } else {
+        dyn(-5);
+        s.power.presse = clamp(s.power.presse - 6);
+        for (const id of ["pavillonnaires", "retraites"]) seg(id, { soutien: -4 });
+        res = "La salle n'est pleine qu'aux deux tiers, et le plan large le montre. Vous parlez cinquante minutes de trop devant des gens qui applaudissent par politesse. Les rédactions ne parleront que des gradins vides — elles ont raison, c'est la seule information de la soirée.";
       }
       break;
     }
@@ -323,69 +531,202 @@ export function applyCampaignAction(
       const perf =
         rang === "critique" ? 80 : rang === "reussite" ? 58 : rang === "echec" ? 40 : rang === "desastre" ? 15 : s.player.rhetorique * fatigueMalus + rng.int(-15, 15);
       if (perf > 55) {
-        for (const id of ["pavillonnaires", "urbains", "retraites"]) s.segments[id].soutien = clamp(s.segments[id].soutien + 4);
-        c.dynamique = clamp(c.dynamique + 3, -10, 10);
-        res = "Prestation solide. Une formule fait mouche, elle sera reprise partout demain.";
+        for (const id of ["pavillonnaires", "urbains", "retraites", "independants"]) seg(id, { soutien: 7 });
+        dyn(4);
+        s.power.presse = clamp(s.power.presse + 4);
+        res = "Prestation solide. Une formule fait mouche, elle sera reprise partout demain — et par les deux camps, ce qui est le signe qu'elle a porté.";
       } else if (perf > 35) {
-        for (const id of ["pavillonnaires", "urbains"]) s.segments[id].soutien = clamp(s.segments[id].soutien + 1);
+        for (const id of ["pavillonnaires", "urbains"]) seg(id, { soutien: 2 });
         res = "Prestation sans relief. Philippe Bec vous trouve « gestionnaire ». Ce n'était pas un compliment.";
       } else {
-        c.dynamique = clamp(c.dynamique - 4, -10, 10);
-        s.power.presse = clamp(s.power.presse - 4);
-        for (const id of ["pavillonnaires", "retraites"]) s.segments[id].soutien = clamp(s.segments[id].soutien - 3);
+        dyn(-5);
+        s.power.presse = clamp(s.power.presse - 6);
+        for (const id of ["pavillonnaires", "retraites"]) seg(id, { soutien: -5 });
         res = "Un trou. Huit secondes de silence en direct. Le clip a déjà deux millions de vues.";
       }
       break;
     }
+    case "porte_a_porte": {
+      // Le militantisme ne convainc pas les convaincus : il va chercher ceux
+      // qui vous aiment bien et ne se déplacent pas. C'est le nerf réel du vote.
+      const force = 6 + Math.round(s.power.parti / 12);
+      const cibles = Object.values(s.segments)
+        .sort((a, b) => a.participation - b.participation)
+        .slice(0, 3);
+      for (const sg of cibles) seg(sg.id, { participation: rate(force), soutien: 3 });
+      s.power.parti = clamp(s.power.parti + 3);
+      dyn(1);
+      res = "Quatre mille militants, cent vingt mille portes, et pas une caméra. On vous claque au nez, on discute vingt minutes, on promet d'y réfléchir. C'est le travail le moins gratifiant de la politique et celui qui décide des élections serrées : on ne convainc pas, on fait sortir.";
+      break;
+    }
+    case "spot_tv": {
+      s.flags["budget_campagne"] = budgetCampagne(s) - 1;
+      for (const id of Object.keys(s.segments)) seg(id, { soutien: rate(5) });
+      dyn(3);
+      res = "Huit jours d'occupation de l'espace : abribus, avant-programmes, préroll. Le message est simple parce qu'il doit survivre à trente secondes. Personne ne dira que c'était beau ; tout le monde l'aura vu quatre fois, et c'est exactement le but.";
+      break;
+    }
     case "fonds": {
-      s.segments["csp"].soutien = clamp(s.segments["csp"].soutien + 5);
-      s.flags["budget_campagne"] = ((s.flags["budget_campagne"] as number) ?? 0) + 1;
-      res = "Les chèques sont signés. Espitalier note tout dans un carnet. Vous préférez ne pas savoir lequel.";
+      seg("csp", { soutien: 8 });
+      s.flags["budget_campagne"] = budgetCampagne(s) + 1;
+      s.power.patronat = clamp(s.power.patronat + 4);
+      s.power.presse = clamp(s.power.presse - 3);
+      res = "Les chèques sont signés. Espitalier note tout dans un carnet. Vous préférez ne pas savoir lequel. La caisse est refaite : elle servira à acheter l'espace que le talent ne suffit pas à occuper.";
       break;
     }
     case "attaque": {
       // Une attaque peut se retourner : c'est l'action la plus volatile.
       const seRetourne = rang ? rang === "desastre" : rng.chance(0.25);
       if (seRetourne) {
-        c.dynamique = clamp(c.dynamique - 4, -10, 10);
-        s.segments["pavillonnaires"].soutien = clamp(s.segments["pavillonnaires"].soutien - 5);
-        s.power.presse = clamp(s.power.presse - 5);
+        dyn(-5);
+        seg("pavillonnaires", { soutien: -7 });
+        s.power.presse = clamp(s.power.presse - 6);
         res = "L'attaque se retourne : l'accusation était mal étayée, l'adversaire répond avec des documents. Vous passez la journée à vous expliquer au lieu de faire campagne.";
         break;
       }
-      c.opposantScore = clamp(c.opposantScore - rate(rang === "critique" ? 11 : 7));
-      for (const id of ["periurbain", "jeunes"]) s.segments[id].participation = clamp(s.segments[id].participation + 5);
-      s.segments["pavillonnaires"].soutien = clamp(s.segments["pavillonnaires"].soutien - 3);
-      s.segments["retraites"].soutien = clamp(s.segments["retraites"].soutien - 2);
-      res = "La pique est cruelle et juste. Votre base jubile. Les modérés trouvent ça « petit ».";
+      c.opposantScore = clamp(c.opposantScore - rate(rang === "critique" ? 16 : 11));
+      for (const id of ["periurbain", "jeunes"]) seg(id, { participation: 7 });
+      seg("pavillonnaires", { soutien: -3 });
+      seg("retraites", { soutien: -3 });
+      dyn(2);
+      res = "La pique est cruelle et juste. Votre base jubile, et surtout elle se lève. Les modérés trouvent ça « petit » — ils le trouveront encore le jour du vote.";
+      break;
+    }
+    case "contre_feu": {
+      // Répondre coûte une semaine entière et ne rapporte rien de neuf : ça
+      // reprend seulement ce que la riposte avait pris. C'est ça, une campagne.
+      const ok = rang ? rang !== "echec" && rang !== "desastre" : s.player.rhetorique + rng.int(-14, 18) > 46;
+      const theme = RIPOSTES.find((r) => r.id === (c.ripostesJouees ?? []).slice(-1)[0]);
+      if (ok) {
+        dyn(4);
+        c.opposantScore = clamp(c.opposantScore - 4);
+        for (const id of theme?.segments ?? ["pavillonnaires"]) seg(id, { soutien: 6 });
+        c.derniereRiposte = undefined;
+        res = `Vous prenez le sujet de front, avec des chiffres et une phrase courte, et vous ne parlez que de ça pendant trois jours. Le sujet meurt d'avoir été traité${
+          theme ? ` : « ${theme.theme.toLowerCase()} » disparaît des titres` : ""
+        }. Vous n'avez rien gagné cette semaine — vous avez simplement cessé de perdre, ce qui en campagne est une victoire.`;
+      } else {
+        dyn(-3);
+        c.opposantScore = clamp(c.opposantScore + 3);
+        res = "Vous répondez, donc vous validez. Pendant quatre jours, chaque journal ouvre sur le sujet qu'il a choisi, avec votre démenti en troisième paragraphe. On ne gagne jamais une campagne sur le terrain de l'autre, et vous venez de payer une semaine pour le réapprendre.";
+      }
       break;
     }
     case "annonce": {
       const promesses = s.promises.filter((p) => p.status === "en_cours");
       if (promesses.length > 0) {
         const p = rng.pick(promesses);
+        const def = PROMESSES.find((x) => x.id === p.id);
         s.flags[`annonce_${p.id}`] = true;
-        c.dynamique = clamp(c.dynamique + 2, -10, 10);
-        res = "L'annonce fait la une. Les électeurs l'ont notée. Ils vérifieront.";
+        for (const id of def?.segments ?? []) seg(id, { soutien: 11, participation: 6 });
+        dyn(4);
+        res = `L'annonce fait la une et sort du lot parce qu'elle est déjà écrite au programme : ${
+          def ? `« ${def.label} »` : "la mesure"
+        }. Les électeurs concernés l'ont notée. Ils vérifieront — et vous aurez cinq ans pour tenir.`;
       } else {
         res = "Rien de neuf à annoncer. La conférence de presse tourne au bilan météo.";
       }
       break;
     }
+    case "promesse_choc": {
+      // Le meilleur coup de campagne et la pire dette : le registre des paroles
+      // s'en souviendra, et l'adversaire la ressortira au premier reniement.
+      const cible = rng.pick(["retraites", "periurbain", "jeunes", "public", "pavillonnaires"]);
+      const libelle = ANNONCES_CHOC[cible];
+      seg(cible, { soutien: 16, participation: 9 });
+      seg("csp", { soutien: -6 });
+      dyn(6);
+      s.power.presse = clamp(s.power.presse - 4);
+      makeCtx(s, rng).dire("promesse_choc", libelle, "en direct, sans l'avoir dit à votre équipe");
+      res = `Vous l'annoncez sans prévenir personne : « ${libelle}. » Votre directeur de campagne apprend la nouvelle en même temps que le pays et sort de la pièce. C'est l'annonce de la semaine, peut-être de la campagne. Elle n'est ni chiffrée, ni arbitrée, ni tenable telle quelle — et elle vient d'entrer dans les archives.`;
+      break;
+    }
     case "dossier": {
       c.dossierAdversaire = Math.min(3, c.dossierAdversaire + 1);
-      res = "Les équipes ont trouvé quelque chose. Utilisable en débat — si vous osez.";
+      res =
+        c.dossierAdversaire >= 3
+          ? "Le dossier est complet : des pièces, des dates, deux témoins qui parleront. Vos équipes vous le remettent sans commentaire — elles savent que ce n'est plus une question de solidité mais de ce que vous acceptez d'être."
+          : "Les équipes ont trouvé quelque chose. Incomplet, invérifiable en l'état, utilisable en débat — si vous osez, et si vous avez de quoi tenir.";
+      break;
+    }
+    case "ralliement": {
+      const ok = rang ? rang !== "echec" && rang !== "desastre" : s.player.reseau + rng.int(-18, 18) > 48;
+      if (ok) {
+        // Le seul geste qui touche au réservoir des tiers : ce sont des voix
+        // qui n'étaient à personne et qui basculent d'un bloc.
+        c.tiers = Math.max(8, (c.tiers ?? 18) - 4);
+        c.opposantScore = clamp(c.opposantScore - 5);
+        for (const id of ["pavillonnaires", "retraites", "independants"]) seg(id, { soutien: 5 });
+        dyn(3);
+        s.player.integrite = clamp(s.player.integrite - 3);
+        res = "La photo est prise sur le perron, brève, et elle vaut plus que trois meetings : une figure de l'autre bord vous rejoint. Le prix a été fixé en quarante minutes — une circonscription, une commission, une promesse de ministère jamais écrite. Une partie de l'électorat qui n'était à personne vient de trouver une raison de choisir.";
+      } else {
+        dyn(-2);
+        s.power.presse = clamp(s.power.presse - 4);
+        res = "La négociation fuite avant d'aboutir. On apprend le prix demandé avant d'apprendre le ralliement, et le ralliement n'aura pas lieu. Il ne reste que le prix, imprimé en gros, et l'impression que tout s'achète chez vous.";
+      }
+      break;
+    }
+    case "terrain": {
+      const cible = rng.pick(["periurbain", "ruraux", "independants"]);
+      const chahut = rng.chance(s.power.popularite < 38 ? 0.45 : 0.2);
+      if (chahut) {
+        seg(cible, { soutien: rate(6), participation: 4 });
+        dyn(rang === "critique" ? 3 : -1);
+        s.power.presse = clamp(s.power.presse + 3);
+        res = "On vous prend à partie devant les caméras, longuement, et vous restez. Vingt minutes de face-à-face avec quelqu'un qui n'a rien à perdre. La séquence tourne partout : la moitié du pays trouve que vous avez tenu, l'autre que vous n'auriez jamais dû y aller.";
+      } else {
+        seg(cible, { soutien: rate(10), participation: rate(7) });
+        dyn(1);
+        res = "Des mains serrées, un café offert, une gueulante saine sur les charges. Rien de spectaculaire, rien de reprenable en trente secondes — et pourtant c'est là que se décide le vote de ceux qui ne regardent aucun plateau.";
+      }
+      break;
+    }
+    case "numerique": {
+      const bad = rng.chance(0.25);
+      if (bad) {
+        seg("jeunes", { participation: 5, soutien: -4 });
+        dyn(-3);
+        res = "La séquence est détournée dans l'heure. Elle atteint quinze millions de vues, ce dont votre équipe se félicite avant de la regarder. Vous êtes devenu un format. On ne redevient jamais un candidat après ça.";
+      } else {
+        seg("jeunes", { participation: rate(14), soutien: rate(9) });
+        seg("urbains", { participation: 5 });
+        dyn(2);
+        res = "Trois formats courts, un direct d'une heure sans cravate, et une réponse à une question que personne n'ose poser en plateau. Le segment le plus abstentionniste du pays commence à envisager de se déplacer — c'est douze pour cent du corps électoral qui sort du décor.";
+      }
+      break;
+    }
+    case "focus_group": {
+      // L'information est un avantage réel : le sondage cesse de mentir.
+      c.sondageFiable = true;
+      const faible = Object.values(s.segments).sort((a, b) => a.soutien - b.soutien)[0];
+      seg(faible.id, { soutien: 4 });
+      dyn(1);
+      res = `Six indécis, deux heures, une glace sans tain. Ils ne parlent pas de vos mesures : ils parlent de votre voix, d'une phrase entendue il y a trois ans, de leur facture d'électricité. Vous ressortez avec deux formules que vous n'auriez jamais trouvées seul et avec la certitude que vos sondages mentaient d'environ trois points. À partir de maintenant, vous savez lire les vôtres.`;
       break;
     }
     case "repos": {
-      s.hidden.sante = clamp(s.hidden.sante + 2);
-      c.dynamique = clamp(c.dynamique - 1, -10, 10);
-      res = "Vingt-quatre heures sans caméra. La presse écrit que vous « disparaissez ». Vous dormez.";
+      s.hidden.sante = clamp(s.hidden.sante + 3);
+      dyn(-1);
+      res = "Vingt-quatre heures sans caméra. La presse écrit que vous « disparaissez ». Vous dormez, et c'est la décision la plus rationnelle de la semaine : les six derniers jours d'une campagne se jouent sur ce qu'il vous reste.";
       break;
     }
   }
+
+  // Le menu de la semaine suivante se tire maintenant : deux semaines ne se
+  // ressemblent jamais, et une occasion manquée l'est vraiment.
+  c.actionsFaites = { ...(c.actionsFaites ?? {}), [actionId]: c.week };
   return res;
 }
+
+/** Ce qu'on lâche en direct quand la semaine tourne mal. */
+const ANNONCES_CHOC: Record<string, string> = {
+  retraites: "Aucune pension ne passera sous le seuil de pauvreté, dès la première année",
+  periurbain: "Je bloquerai le prix des carburants, et je le ferai par décret s'il le faut",
+  jeunes: "Le premier logement sera garanti par l'État pour tous les moins de trente ans",
+  public: "Il n'y aura pas une seule suppression de poste à l'hôpital pendant ce mandat",
+  pavillonnaires: "Je supprimerai cet impôt, en totalité, la première année",
+};
 
 // ---------------------------------------------------------------------------
 // Le débat : trois temps rhétoriques

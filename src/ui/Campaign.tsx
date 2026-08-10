@@ -2,20 +2,30 @@ import { useState } from "react";
 import type { GameState, PromiseTheme } from "../engine/types";
 import { useGame, DEBATE_OFFSET } from "../store";
 import { PROMESSES, CAST, SEGMENTS } from "../content/france/data";
-import { CAMPAIGN_ACTIONS, DEBATE_BEATS, sondageAffiche } from "../engine/campaign";
+import { budgetCampagne, CAMPAIGN_ACTIONS, DEBATE_BEATS, sondageAffiche } from "../engine/campaign";
 import { makeRng } from "../engine/rng";
 import { nomCompletDe } from "../engine/noms";
 import { DeltaChips, EventView, RareteBadge, Tag } from "./components";
 import { RichText } from "./RichText";
 import Bilan from "./Bilan";
+import Affiche from "./Affiche";
 
 const ACTION_META: Record<string, { icone: string; tone: string }> = {
   meeting: { icone: "◎", tone: "var(--color-social)" },
+  meeting_geant: { icone: "✷", tone: "var(--color-perso)" },
   plateau: { icone: "▣", tone: "var(--color-secu)" },
+  porte_a_porte: { icone: "⌂", tone: "var(--color-social)" },
+  spot_tv: { icone: "◫", tone: "var(--color-eco)" },
   fonds: { icone: "◈", tone: "var(--color-eco)" },
   attaque: { icone: "⚔", tone: "var(--color-bad)" },
+  contre_feu: { icone: "✚", tone: "var(--color-warn)" },
   annonce: { icone: "★", tone: "var(--color-perso)" },
+  promesse_choc: { icone: "✦", tone: "var(--color-bad)" },
   dossier: { icone: "◐", tone: "var(--color-monde)" },
+  ralliement: { icone: "⚑", tone: "var(--color-monde)" },
+  terrain: { icone: "⚒", tone: "var(--color-social)" },
+  numerique: { icone: "◉", tone: "var(--color-monde)" },
+  focus_group: { icone: "◍", tone: "var(--color-secu)" },
   repos: { icone: "☾", tone: "var(--color-env)" },
 };
 
@@ -198,14 +208,20 @@ export default function Campaign({ s }: { s: GameState }) {
 
   if (!s.campaign) return <Programme s={s} />;
   // Avant la réélection, on remet au sortant la note que personne n'ose lui
-  // faire pendant le mandat.
+  // faire pendant le mandat. Puis, dans les deux cas, on présente le duel.
   if (s.flags["bilan_a_lire"]) return <Bilan s={s} />;
+  if (s.flags["affiche_a_voir"]) return <Affiche s={s} />;
   const c = s.campaign;
   const opposant = CAST.some((x) => x.id === c.opposantId) ? nomCompletDe(s, c.opposantId) : "Maryse Cottin";
   const sondage = sondageAffiche(s, makeRng(s.seed + 999, s.rngCalls));
   const enDebat = c.week === c.totalWeeks - DEBATE_OFFSET && !c.debatFait;
   const fini = c.week > c.totalWeeks;
   const total = sondage.joueur + sondage.opposant;
+  // Le tirage de la semaine. Une sauvegarde d'avant le tirage n'en a pas :
+  // on lui rend l'éventail complet plutôt que de la laisser sans action.
+  const actionsSemaine = (c.actionPool?.length ? c.actionPool : CAMPAIGN_ACTIONS.map((a) => a.id))
+    .map((id) => CAMPAIGN_ACTIONS.find((a) => a.id === id))
+    .filter((a): a is (typeof CAMPAIGN_ACTIONS)[number] => !!a);
 
   return (
     <div className="max-w-3xl mx-auto pt-8 px-5 pb-16">
@@ -228,7 +244,9 @@ export default function Campaign({ s }: { s: GameState }) {
 
       <div className="card p-4 mb-4">
         <div className="flex items-baseline justify-between mb-2">
-          <span className="label">Sondage · marge ±3</span>
+          <span className="label" data-aide={c.sondageFiable ? "Vos instituts ont recalé leurs panneaux : ce chiffre est le vrai." : undefined}>
+            {c.sondageFiable ? "Sondage · recalé" : "Sondage · marge ±3"}
+          </span>
           <span className="text-[11px]" style={{ color: c.dynamique >= 0 ? "var(--color-good)" : "var(--color-bad)" }}>
             {c.dynamique >= 0 ? "↗ dynamique" : "↘ dynamique"} {c.dynamique > 0 ? "+" : ""}
             {c.dynamique}
@@ -261,6 +279,12 @@ export default function Campaign({ s }: { s: GameState }) {
           </Tag>
           <Tag tone="var(--color-monde)" aide="Ce que vos équipes ont trouvé sur l'adversaire. Utilisable au débat.">
             Dossier {c.dossierAdversaire}/3
+          </Tag>
+          <Tag
+            tone={budgetCampagne(s) > 0 ? "var(--color-eco)" : "var(--color-faint)"}
+            aide="La caisse de campagne. Elle se remplit aux dîners et s'achète en affichage et en spots."
+          >
+            Caisse {budgetCampagne(s)}
           </Tag>
           {c.ligneAdverse && (
             <Tag tone="var(--color-bad)" aide="La ligne de campagne d'en face. Il y reviendra chaque semaine.">
@@ -314,9 +338,18 @@ export default function Campaign({ s }: { s: GameState }) {
         </div>
       ) : (
         <div className="card p-6 fade-in">
-          <h2 className="press-une text-xl mb-3">L'action de la semaine</h2>
+          <div className="flex items-baseline justify-between gap-2 mb-1">
+            <h2 className="press-une text-xl">L'action de la semaine</h2>
+            <span className="text-[11px]" style={{ color: "var(--color-faint)" }}>
+              semaine {c.week}/{c.totalWeeks}
+            </span>
+          </div>
+          <p className="text-[11.5px] mb-3" style={{ color: "var(--color-faint)" }}>
+            Quatre possibilités, tirées par le calendrier et vos équipes. Ce que vous ne saisissez pas cette semaine ne
+            reviendra pas forcément.
+          </p>
           <div className="grid sm:grid-cols-2 gap-2 stagger">
-            {CAMPAIGN_ACTIONS.map((a) => {
+            {actionsSemaine.map((a) => {
               const meta = ACTION_META[a.id] ?? { icone: "◆", tone: "var(--color-monde)" };
               return (
                 <button
@@ -346,6 +379,7 @@ export default function Campaign({ s }: { s: GameState }) {
             })}
           </div>
 
+          {actionsSemaine.some((a) => a.needSegment) && (
           <div className="mt-4">
             <div className="label mb-1.5">Cible du meeting</div>
             <div className="flex flex-wrap gap-1">
@@ -367,6 +401,7 @@ export default function Campaign({ s }: { s: GameState }) {
               })}
             </div>
           </div>
+          )}
         </div>
       )}
     </div>

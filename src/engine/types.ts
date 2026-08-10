@@ -496,6 +496,19 @@ export interface CampaignState {
   ligneAdverse?: string;
   ripostesJouees?: string[];
   derniereRiposte?: string;
+  /**
+   * Les quatre possibilités de la semaine. Une campagne où l'on dispose chaque
+   * semaine de tout l'éventail n'est pas une campagne : c'est une liste.
+   */
+  actionPool?: string[];
+  /** Semaine où chaque action a été employée — sert au tirage et aux cooldowns. */
+  actionsFaites?: Record<string, number>;
+  /** Le réservoir des voix qui ne sont à personne. Un ralliement l'entame. */
+  tiers?: number;
+  /** Après un focus group, vos instituts cessent de vous mentir. */
+  sondageFiable?: boolean;
+  /** Le parcours tiré pour l'adversaire — il change à chaque partie. */
+  portraitAdversaire?: { parcours: string; slogan: string };
 }
 
 /**

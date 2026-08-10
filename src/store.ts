@@ -6,7 +6,16 @@ import { randomSeed, type Rng } from "./engine/rng";
 import { makeCtx } from "./engine/ctx";
 import { getEvent, getCrise } from "./engine/registry";
 import { genBriefing, selectTurnEvents, endOfTurn, updateTrends } from "./engine/turn";
-import { applyCampaignAction, ligneAdverse, makeCampaign, resolveElection, riposter, runDebate } from "./engine/campaign";
+import {
+  applyCampaignAction,
+  ligneAdverse,
+  makeCampaign,
+  resolveElection,
+  riposter,
+  runDebate,
+  tirerActionsSemaine,
+} from "./engine/campaign";
+import { parcoursDe, tirerPortraitAdverse } from "./content/france/affiche";
 import { buildAscension } from "./content/france/ascension";
 import { EVENTS_CAMPAGNE } from "./content/france/campagne";
 import { ACTIONS, CHANCE_OPPORTUNITE, REFORMES, type ActionDef } from "./content/france/actions";
@@ -131,6 +140,9 @@ function appliquerSemaine(s: GameState, actionId: string, segmentId: string | un
     }
   }
   c.week += 1;
+  // Le menu de la semaine suivante est tiré tout de suite : ce qu'on n'a pas
+  // saisi cette semaine n'est pas garanti de revenir.
+  c.actionPool = tirerActionsSemaine(s, rng);
   s.rngCalls = rng.state();
 }
 
@@ -142,6 +154,33 @@ function appliquerDebat(s: GameState, beats: string[], rang?: CheckRang): void {
   s.resolution = recit ? `${recit} ${texte}` : texte;
   recordImpacts(s, avant);
   s.rngCalls = rng.state();
+}
+
+/**
+ * Ouvre une campagne : l'adversaire, son parcours tiré pour cette partie-ci,
+ * ce que ce parcours lui apporte d'emblée, et le menu de la première semaine.
+ * On passe par l'affiche avant la première action — une campagne doit d'abord
+ * ressembler à un duel entre deux personnes.
+ */
+function ouvrirCampagne(
+  s: GameState,
+  rng: Rng,
+  kind: "presidentielle" | "reelection",
+  opposantId: string,
+  score: number,
+  ligne?: string
+): void {
+  const portrait = tirerPortraitAdverse(rng);
+  const parcours = parcoursDe(portrait.parcours);
+  s.campaign = makeCampaign(kind, opposantId, score + (parcours.score ?? 0), ligne);
+  s.campaign.portraitAdversaire = portrait;
+  // Un parcours n'est pas un décor : celui d'en face arrive avec un électorat.
+  for (const id of parcours.segments ?? []) {
+    const seg = s.segments[id];
+    if (seg) seg.soutien = Math.max(0, seg.soutien - 3);
+  }
+  s.campaign.actionPool = tirerActionsSemaine(s, rng);
+  s.flags["affiche_a_voir"] = true;
 }
 
 export interface PantheonEntry {
@@ -174,8 +213,10 @@ interface Store {
   doAction: (actionId: string, param?: string) => void;
   finishTurn: () => void;
   chooseProgram: (promiseIds: string[]) => void;
-  /** Referme le bilan de mandat et laisse la campagne commencer. */
+  /** Referme le bilan de mandat et laisse l'affiche s'ouvrir. */
   closeBilan: () => void;
+  /** Referme le face-à-face et lance la première semaine. */
+  closeAffiche: () => void;
   campaignWeek: (actionId: string, segmentId?: string) => void;
   doDebate: (beats: string[]) => void;
   finishElection: () => void;
@@ -318,7 +359,7 @@ function endTurnFlow(s: GameState): void {
       // à la fois de la force de l'adversaire et de sa ligne de campagne.
       const ligne = ligneAdverse(s);
       score += Math.round(Math.min(14, (ligne?.force(s) ?? 0) * 0.45));
-      s.campaign = makeCampaign("reelection", opposantId, score, ligne?.theme);
+      ouvrirCampagne(s, rng, "reelection", opposantId, score, ligne?.theme);
       s.act = "campagne";
       s.phase = "briefing";
       s.press = [];
@@ -598,7 +639,7 @@ export const useGame = create<Store>()(
         // Face à un candidat, on n'attaque pas un bilan : on attaque ce qu'il
         // promet, ce qu'il vaut et jusqu'où il va.
         const ligne = ligneAdverse(s, false);
-        s.campaign = makeCampaign("presidentielle", opposantId, opposantId === "sallenave" ? 46 : 50, ligne?.theme);
+        ouvrirCampagne(s, rng, "presidentielle", opposantId, opposantId === "sallenave" ? 46 : 50, ligne?.theme);
         s.rngCalls = rng.state();
         set({ game: s });
       },
@@ -606,6 +647,12 @@ export const useGame = create<Store>()(
       closeBilan: () => {
         const s = clone(get().game!);
         delete s.flags["bilan_a_lire"];
+        set({ game: s });
+      },
+
+      closeAffiche: () => {
+        const s = clone(get().game!);
+        delete s.flags["affiche_a_voir"];
         set({ game: s });
       },
 
